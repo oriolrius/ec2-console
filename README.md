@@ -4,7 +4,8 @@ A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2
 
 **Infrastructure** is defined in CloudFormation (one command to create, one to destroy). **Provisioning** is handled by an idempotent Ansible playbook with modular, tagged task files.
 
-[![EC2 Console Demo](https://img.youtube.com/vi/hT7XWxzp-n0/maxresdefault.jpg)](https://youtu.be/hT7XWxzp-n0)
+[![Watch the demo](docs/demo-thumbnail.jpg)](https://youtu.be/hT7XWxzp-n0)
+> **[Watch the full demo on YouTube](https://youtu.be/hT7XWxzp-n0)** -- deployment, provisioning, and usage walkthrough (click the image above)
 
 ## Access methods
 
