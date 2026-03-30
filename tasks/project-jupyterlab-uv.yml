@@ -27,3 +27,15 @@
   args:
     chdir: "{{ ubuntu_home }}/jupyterlab"
     creates: "{{ ubuntu_home }}/jupyterlab/.venv"
+
+- name: Create UV kernel directory
+  become_user: ubuntu
+  file:
+    path: "{{ ubuntu_home }}/.local/share/jupyter/kernels/jupyterlab-uv"
+    state: directory
+
+- name: Register UV JupyterLab kernel globally
+  become_user: ubuntu
+  copy:
+    src: "files/jupyterlab/kernelspec/kernel.json"
+    dest: "{{ ubuntu_home }}/.local/share/jupyter/kernels/jupyterlab-uv/kernel.json"

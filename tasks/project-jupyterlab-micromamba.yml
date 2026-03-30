@@ -27,3 +27,15 @@
   args:
     chdir: "{{ ubuntu_home }}/micromamba"
     creates: "{{ ubuntu_home }}/micromamba/env"
+
+- name: Create Micromamba kernel directory
+  become_user: ubuntu
+  file:
+    path: "{{ ubuntu_home }}/.local/share/jupyter/kernels/micromamba"
+    state: directory
+
+- name: Register Micromamba JupyterLab kernel globally
+  become_user: ubuntu
+  copy:
+    src: "files/micromamba/kernelspec/kernel.json"
+    dest: "{{ ubuntu_home }}/.local/share/jupyter/kernels/micromamba/kernel.json"

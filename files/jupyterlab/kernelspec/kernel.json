@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "/home/ubuntu/jupyterlab/.venv/bin/python",
+    "-m",
+    "ipykernel_launcher",
+    "-f",
+    "{connection_file}"
+  ],
+  "display_name": "Python (UV - jupyterlab)",
+  "language": "python",
+  "metadata": {
+    "debugger": true
+  }
+}
