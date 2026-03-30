@@ -10,5 +10,5 @@
 
 - name: Install system prerequisites
   apt:
-    name: [ca-certificates, curl, gnupg, bzip2, unzip, xz-utils, git, jq, htop]
+    name: [ca-certificates, curl, gnupg, bzip2, unzip, xz-utils, git, jq, htop, btop]
     state: present

@@ -1,0 +1,21 @@
+---
+# Visual Studio Code — desktop application
+
+- name: Add Microsoft GPG key
+  shell: |
+    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+      | gpg --dearmor -o /etc/apt/keyrings/microsoft.gpg
+  args:
+    creates: /etc/apt/keyrings/microsoft.gpg
+
+- name: Add VS Code apt repository
+  copy:
+    dest: /etc/apt/sources.list.d/vscode.list
+    content: "deb [signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main\n"
+    mode: '0644'
+
+- name: Install VS Code
+  apt:
+    name: code
+    state: present
+    update_cache: true
