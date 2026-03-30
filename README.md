@@ -9,8 +9,7 @@ A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2
 | Method | Port | Use case |
 |---|---|---|
 | **SSH** | 22 | Terminal access, VS Code Remote SSH |
-| **RDP** (xrdp) | 3389 | Full XFCE graphical desktop from any RDP client |
-| **code-server** | 8080 | VS Code in the browser -- zero install, works from tablets |
+| **Chrome Remote Desktop** | -- | Full XFCE graphical desktop (no inbound port needed) |
 | **JupyterLab** | 8888 / 8889 | Notebook interface (UV or Micromamba) |
 
 ## Included tooling
@@ -21,13 +20,12 @@ A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2
 | **Docker CE + Compose v2** | `docker` | Build and run containerized workloads |
 | **UV** | `uv` | Fast Python package manager |
 | **Micromamba** | `micromamba` | Conda-compatible environment manager |
-| **XFCE4 + xrdp** | `desktop` | Graphical desktop accessible via RDP |
+| **XFCE4 + Chrome Remote Desktop** | `desktop` | Graphical desktop via Google CRD (no inbound port) |
 | **Kitty** | `terminal` | GPU-accelerated terminal with Nerd Font support |
 | **oh-my-posh** | `terminal` | Modern shell prompt with glyphs |
 | **Zellij** | `terminal` | Terminal multiplexer |
 | **Nerd Fonts** | `terminal` | JetBrainsMono + Symbols fallback |
 | **Chromium** | `browser` | Web browser for desktop sessions |
-| **code-server** | `code-server` | VS Code in the browser |
 
 ## Boilerplate projects
 
@@ -107,10 +105,9 @@ Available tags:
 | `docker` | Docker CE + Compose plugin + ubuntu group membership |
 | `uv` | UV package manager |
 | `micromamba` | Micromamba package manager |
-| `desktop` | XFCE4 desktop + xrdp server (port 3389) |
+| `desktop` | XFCE4 desktop + Chrome Remote Desktop |
 | `terminal` | Kitty, Nerd Fonts, oh-my-posh, Zellij |
 | `browser` | Chromium |
-| `code-server` | VS Code in the browser (port 8080) |
 | `projects` | All boilerplate projects |
 | `jupyterlab-uv` | JupyterLab UV project only |
 | `jupyterlab-micromamba` | JupyterLab Micromamba project only |
@@ -125,19 +122,21 @@ The playbook is idempotent. Re-run it any time to apply updates or fix drift.
 ssh -i ec2-key.pem ubuntu@<public-ip>
 ```
 
-**Remote Desktop (RDP):**
+**Chrome Remote Desktop (one-time registration):**
 
-Connect with any RDP client to `<public-ip>:3389`. Login: `ubuntu` / `ubuntu`.
+1. SSH into the instance
+2. Visit https://remotedesktop.google.com/headless on your local browser
+3. Click **Begin** > **Next** > **Authorize** > copy the `DISPLAY= ... start` command
+4. Paste and run the command on the instance -- set a PIN when prompted
+5. Connect from https://remotedesktop.google.com or the CRD app
 
-Override the default password at provision time:
+CRD uses Google's relay so no inbound port is needed. The XFCE desktop starts automatically with Kitty as the default terminal.
+
+To restart CRD after issues:
 
 ```bash
-JUPYTER_IP=<public-ip> ansible-playbook playbook.yml -e ubuntu_password=yourpassword
+sudo systemctl restart chrome-remote-desktop@ubuntu
 ```
-
-**code-server (browser):**
-
-Open `http://<public-ip>:8080` in any browser. No authentication required.
 
 **JupyterLab:**
 
@@ -207,7 +206,6 @@ aws cloudformation delete-stack \
 │   ├── desktop.yml                             # XFCE4 + xrdp
 │   ├── terminal.yml                            # Kitty, Nerd Fonts, oh-my-posh, Zellij
 │   ├── browser.yml                             # Chromium
-│   ├── code-server.yml                         # VS Code in browser
 │   ├── project-jupyterlab-uv.yml               # JupyterLab + UV boilerplate
 │   └── project-jupyterlab-micromamba.yml        # JupyterLab + Micromamba boilerplate
 ├── files/
@@ -217,8 +215,6 @@ aws cloudformation delete-stack \
 │   │   ├── kitty.conf                          # Kitty terminal config
 │   │   ├── zellij-config.kdl                   # Zellij config
 │   │   └── 10-nerd-font-symbols.conf           # Font fallback
-│   ├── code-server/
-│   │   └── config.yaml                         # code-server settings
 │   ├── jupyterlab/                             # UV JupyterLab boilerplate
 │   └── micromamba/                             # Micromamba JupyterLab boilerplate
 └── .gitignore
@@ -242,9 +238,8 @@ Create a task file in `tasks/`, import it in `playbook.yml` with a tag. Add conf
 
 ## Notes
 
-- The security group opens ports **22** (SSH), **3389** (RDP), **8080** (code-server), **8888-8889** (JupyterLab) to `0.0.0.0/0`. Restrict the CIDR in `cloudformation.yaml` for tighter access control.
-- The default xrdp password is `ubuntu`. Change it at provision time with `-e ubuntu_password=...` or via `passwd` after login.
-- code-server runs over HTTP (no auth). Suitable for development behind a security group, not for production.
+- The security group opens ports **22** (SSH) and **8888-8889** (JupyterLab) to `0.0.0.0/0`. Chrome Remote Desktop uses outbound connections only -- no inbound port needed. Restrict the CIDR in `cloudformation.yaml` for tighter access control.
+- CRD registration is a one-time manual step per instance (requires Google account).
 - The instance uses a **25 GB gp3** root volume. Increase `VolumeSize` in `cloudformation.yaml` if needed.
 - If the account has no default VPC: `aws ec2 create-default-vpc --region eu-west-1`.
 

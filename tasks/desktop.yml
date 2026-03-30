@@ -1,6 +1,7 @@
 ---
-# XFCE4 desktop + xrdp remote desktop server
-# Connect via any RDP client (Windows Remote Desktop, Remmina, etc.)
+# XFCE4 desktop + Chrome Remote Desktop
+# CRD uses Google's relay — no inbound port required.
+# After provisioning, run the one-time registration (see README).
 
 - name: Install XFCE4 desktop environment
   apt:
@@ -16,49 +17,55 @@
   environment:
     DEBIAN_FRONTEND: noninteractive
 
-- name: Install xrdp
+- name: Add Google Chrome Remote Desktop signing key
+  shell: |
+    curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+      | gpg --dearmor -o /etc/apt/keyrings/google-crd.gpg
+  args:
+    creates: /etc/apt/keyrings/google-crd.gpg
+
+- name: Add Chrome Remote Desktop repository
+  copy:
+    dest: /etc/apt/sources.list.d/chrome-remote-desktop.list
+    content: "deb [signed-by=/etc/apt/keyrings/google-crd.gpg] https://dl.google.com/linux/chrome-remote-desktop/deb/ stable main\n"
+    mode: '0644'
+
+- name: Install Chrome Remote Desktop
   apt:
-    name: xrdp
+    name: chrome-remote-desktop
+    state: present
+    update_cache: true
+
+- name: Create chrome-remote-desktop group if missing
+  group:
+    name: chrome-remote-desktop
     state: present
 
-- name: Add xrdp user to ssl-cert group
+- name: Add ubuntu user to chrome-remote-desktop group
   user:
-    name: xrdp
-    groups: ssl-cert
+    name: ubuntu
+    groups: chrome-remote-desktop
     append: true
 
-- name: Deploy xsession for ubuntu user
+- name: Deploy CRD session startup script
   copy:
-    src: "files/desktop/xsession"
-    dest: "{{ ubuntu_home }}/.xsession"
+    dest: "{{ ubuntu_home }}/.chrome-remote-desktop-session"
+    content: |
+      export CHROME_REMOTE_DESKTOP_DEFAULT_DESKTOP_SIZES="1920x1080"
+      export LANG=en_US.UTF-8
+      setxkbmap us
+      startxfce4
     owner: ubuntu
     group: ubuntu
     mode: '0755'
 
-- name: Configure polkit to suppress xrdp auth dialogs
-  copy:
-    dest: /etc/polkit-1/rules.d/45-allow-colord.rules
-    content: |
-      polkit.addRule(function(action, subject) {
-          if ((action.id == "org.freedesktop.color-manager.create-device" ||
-               action.id == "org.freedesktop.color-manager.create-profile" ||
-               action.id == "org.freedesktop.color-manager.delete-device" ||
-               action.id == "org.freedesktop.color-manager.delete-profile" ||
-               action.id == "org.freedesktop.color-manager.modify-device" ||
-               action.id == "org.freedesktop.color-manager.modify-profile") &&
-              subject.isInGroup("users")) {
-              return polkit.Result.YES;
-          }
-      });
-    mode: '0644'
-
-- name: Set password for ubuntu user (required for xrdp login)
-  user:
-    name: ubuntu
-    password: "{{ ubuntu_password | default('ubuntu') | password_hash('sha512') }}"
-
-- name: Enable and start xrdp
-  systemd:
-    name: xrdp
-    enabled: true
-    state: started
+- name: Ensure D-Bus session starts on login
+  blockinfile:
+    path: "{{ ubuntu_home }}/.profile"
+    marker: "# {mark} dbus-session"
+    block: |
+      if [ ! -S "/run/user/$(id -u)/bus" ]; then
+          dbus-daemon --session --address="unix:path=/run/user/$(id -u)/bus" --fork 2>/dev/null
+      fi
+    owner: ubuntu
+    group: ubuntu
