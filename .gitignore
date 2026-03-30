@@ -2,3 +2,6 @@
 *.key
 *.env
 aws_credentials.yaml
+
+.playwright-mcp/
+*.png

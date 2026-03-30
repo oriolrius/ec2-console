@@ -26,6 +26,22 @@
       tags: [micromamba]
       import_tasks: tasks/micromamba.yml
 
+    - name: XFCE desktop + xrdp
+      tags: [desktop]
+      import_tasks: tasks/desktop.yml
+
+    - name: Terminal tooling (Kitty, Nerd Fonts, oh-my-posh, Zellij)
+      tags: [terminal]
+      import_tasks: tasks/terminal.yml
+
+    - name: Chromium browser
+      tags: [browser]
+      import_tasks: tasks/browser.yml
+
+    - name: code-server (VS Code in browser)
+      tags: [code-server]
+      import_tasks: tasks/code-server.yml
+
     - name: Project — JupyterLab (UV)
       tags: [projects, jupyterlab-uv]
       import_tasks: tasks/project-jupyterlab-uv.yml

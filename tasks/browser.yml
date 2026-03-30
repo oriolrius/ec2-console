@@ -1,0 +1,7 @@
+---
+# Chromium browser for graphical desktop sessions
+
+- name: Install Chromium browser
+  apt:
+    name: chromium-browser
+    state: present

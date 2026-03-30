@@ -1,0 +1,26 @@
+---
+# code-server: VS Code in the browser (port 8080)
+
+- name: Install code-server
+  shell: curl -fsSL https://code-server.dev/install.sh | sh
+  args:
+    creates: /usr/bin/code-server
+
+- name: Create code-server config directory
+  become_user: ubuntu
+  file:
+    path: "{{ ubuntu_home }}/.config/code-server"
+    state: directory
+
+- name: Deploy code-server config
+  become_user: ubuntu
+  copy:
+    src: "files/code-server/config.yaml"
+    dest: "{{ ubuntu_home }}/.config/code-server/config.yaml"
+  register: codeserver_config
+
+- name: Enable and start code-server for ubuntu
+  systemd:
+    name: "code-server@ubuntu"
+    enabled: true
+    state: "{{ 'restarted' if codeserver_config.changed else 'started' }}"

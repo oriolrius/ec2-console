@@ -1,0 +1,102 @@
+---
+# Kitty terminal + Nerd Fonts + oh-my-posh + Zellij
+# Full terminal development experience
+
+- name: Install Kitty terminal
+  apt:
+    name: kitty
+    state: present
+
+- name: Create font directories
+  become_user: ubuntu
+  file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - "{{ ubuntu_home }}/.local/share/fonts/JetBrainsMono"
+    - "{{ ubuntu_home }}/.local/share/fonts/NerdFontsSymbols"
+
+- name: Download JetBrainsMono Nerd Font
+  become_user: ubuntu
+  shell: |
+    curl -sL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz \
+      | tar xJ -C ~/.local/share/fonts/JetBrainsMono/
+  args:
+    creates: "{{ ubuntu_home }}/.local/share/fonts/JetBrainsMono/JetBrainsMonoNerdFontMono-Regular.ttf"
+
+- name: Download Symbols Nerd Font
+  become_user: ubuntu
+  shell: |
+    curl -sL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.tar.xz \
+      | tar xJ -C ~/.local/share/fonts/NerdFontsSymbols/
+  args:
+    creates: "{{ ubuntu_home }}/.local/share/fonts/NerdFontsSymbols/SymbolsNerdFontMono-Regular.ttf"
+
+- name: Create fontconfig directory
+  become_user: ubuntu
+  file:
+    path: "{{ ubuntu_home }}/.config/fontconfig/conf.d"
+    state: directory
+
+- name: Deploy fontconfig fallback for Nerd Font symbols
+  become_user: ubuntu
+  copy:
+    src: "files/terminal/10-nerd-font-symbols.conf"
+    dest: "{{ ubuntu_home }}/.config/fontconfig/conf.d/10-nerd-font-symbols.conf"
+  register: fontconfig_changed
+
+- name: Refresh font cache
+  become_user: ubuntu
+  command: fc-cache -fv
+  when: fontconfig_changed.changed
+
+- name: Create config directories
+  become_user: ubuntu
+  file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - "{{ ubuntu_home }}/.config/kitty"
+    - "{{ ubuntu_home }}/.config/zellij"
+    - "{{ ubuntu_home }}/.config/xfce4"
+
+- name: Deploy Kitty config
+  become_user: ubuntu
+  copy:
+    src: "files/terminal/kitty.conf"
+    dest: "{{ ubuntu_home }}/.config/kitty/kitty.conf"
+
+- name: Install oh-my-posh
+  become_user: ubuntu
+  shell: curl -s https://ohmyposh.dev/install.sh | bash -s
+  args:
+    creates: "{{ ubuntu_home }}/.local/bin/oh-my-posh"
+
+- name: Add oh-my-posh to bashrc
+  become_user: ubuntu
+  blockinfile:
+    path: "{{ ubuntu_home }}/.bashrc"
+    marker: "# {mark} oh-my-posh"
+    block: |
+      eval "$(~/.local/bin/oh-my-posh init bash)"
+
+- name: Install Zellij
+  shell: |
+    curl -sL https://github.com/zellij-org/zellij/releases/latest/download/zellij-x86_64-unknown-linux-musl.tar.gz \
+      | tar xz -C /usr/local/bin
+  args:
+    creates: /usr/local/bin/zellij
+
+- name: Deploy Zellij config
+  become_user: ubuntu
+  copy:
+    src: "files/terminal/zellij-config.kdl"
+    dest: "{{ ubuntu_home }}/.config/zellij/config.kdl"
+
+- name: Set Kitty as default terminal in XFCE
+  become_user: ubuntu
+  copy:
+    dest: "{{ ubuntu_home }}/.config/xfce4/helpers.rc"
+    content: |
+      TerminalEmulator=kitty
+    force: false

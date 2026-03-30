@@ -1,0 +1,64 @@
+---
+# XFCE4 desktop + xrdp remote desktop server
+# Connect via any RDP client (Windows Remote Desktop, Remmina, etc.)
+
+- name: Install XFCE4 desktop environment
+  apt:
+    name:
+      - xfce4
+      - xfce4-goodies
+      - xfce4-clipman-plugin
+      - dbus-x11
+      - x11-xserver-utils
+      - xclip
+      - fonts-noto-color-emoji
+    state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Install xrdp
+  apt:
+    name: xrdp
+    state: present
+
+- name: Add xrdp user to ssl-cert group
+  user:
+    name: xrdp
+    groups: ssl-cert
+    append: true
+
+- name: Deploy xsession for ubuntu user
+  copy:
+    src: "files/desktop/xsession"
+    dest: "{{ ubuntu_home }}/.xsession"
+    owner: ubuntu
+    group: ubuntu
+    mode: '0755'
+
+- name: Configure polkit to suppress xrdp auth dialogs
+  copy:
+    dest: /etc/polkit-1/rules.d/45-allow-colord.rules
+    content: |
+      polkit.addRule(function(action, subject) {
+          if ((action.id == "org.freedesktop.color-manager.create-device" ||
+               action.id == "org.freedesktop.color-manager.create-profile" ||
+               action.id == "org.freedesktop.color-manager.delete-device" ||
+               action.id == "org.freedesktop.color-manager.delete-profile" ||
+               action.id == "org.freedesktop.color-manager.modify-device" ||
+               action.id == "org.freedesktop.color-manager.modify-profile") &&
+              subject.isInGroup("users")) {
+              return polkit.Result.YES;
+          }
+      });
+    mode: '0644'
+
+- name: Set password for ubuntu user (required for xrdp login)
+  user:
+    name: ubuntu
+    password: "{{ ubuntu_password | default('ubuntu') | password_hash('sha512') }}"
+
+- name: Enable and start xrdp
+  systemd:
+    name: xrdp
+    enabled: true
+    state: started
