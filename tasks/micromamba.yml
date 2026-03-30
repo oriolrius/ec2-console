@@ -1,0 +1,15 @@
+---
+# Micromamba — conda-compatible package manager
+
+- name: Install Micromamba binary
+  shell: |
+    curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest \
+      | tar -xvj -C /usr/local/bin --strip-components=1 bin/micromamba
+  args:
+    creates: /usr/local/bin/micromamba
+
+- name: Initialize Micromamba shell for ubuntu
+  become_user: ubuntu
+  shell: micromamba shell init -s bash -r ~/.micromamba
+  args:
+    creates: "{{ ubuntu_home }}/.micromamba"

@@ -1,0 +1,35 @@
+---
+- name: Provision EC2 console workstation
+  hosts: all
+  become: true
+  vars:
+    ubuntu_home: /home/ubuntu
+
+  tasks:
+    - name: System baseline
+      tags: [base, always]
+      import_tasks: tasks/base.yml
+
+    - name: AWS CLI v2
+      tags: [awscli]
+      import_tasks: tasks/awscli.yml
+
+    - name: Docker CE + Compose
+      tags: [docker]
+      import_tasks: tasks/docker.yml
+
+    - name: UV package manager
+      tags: [uv]
+      import_tasks: tasks/uv.yml
+
+    - name: Micromamba package manager
+      tags: [micromamba]
+      import_tasks: tasks/micromamba.yml
+
+    - name: Project — JupyterLab (UV)
+      tags: [projects, jupyterlab-uv]
+      import_tasks: tasks/project-jupyterlab-uv.yml
+
+    - name: Project — JupyterLab (Micromamba)
+      tags: [projects, jupyterlab-micromamba]
+      import_tasks: tasks/project-jupyterlab-micromamba.yml

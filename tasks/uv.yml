@@ -1,0 +1,8 @@
+---
+# UV — fast Python package manager (installed for ubuntu user)
+
+- name: Install UV for ubuntu user
+  become_user: ubuntu
+  shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+  args:
+    creates: "{{ ubuntu_home }}/.local/bin/uv"

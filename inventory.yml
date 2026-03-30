@@ -1,0 +1,4 @@
+all:
+  hosts:
+    jupyter:
+      ansible_host: "{{ lookup('env', 'JUPYTER_IP') }}"

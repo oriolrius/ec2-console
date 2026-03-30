@@ -1,0 +1,11 @@
+---
+# AWS CLI v2 — installed from official Amazon bundle
+
+- name: Install AWS CLI v2
+  shell: |
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+    unzip -qo /tmp/awscliv2.zip -d /tmp
+    /tmp/aws/install --update
+    rm -rf /tmp/awscliv2.zip /tmp/aws
+  args:
+    creates: /usr/local/bin/aws

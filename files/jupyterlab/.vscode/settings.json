@@ -1,0 +1,10 @@
+{
+  "python.defaultInterpreterPath": "/home/ubuntu/jupyterlab/.venv/bin/python",
+  "jupyter.notebookFileRoot": "/home/ubuntu/jupyterlab",
+  "jupyter.kernels.filter": [
+    {
+      "path": "/home/ubuntu/jupyterlab/.venv/bin/python",
+      "type": "pythonEnvironment"
+    }
+  ]
+}

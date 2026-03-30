@@ -1,0 +1,29 @@
+---
+# Boilerplate: JupyterLab with Micromamba at ~/micromamba
+
+- name: Create micromamba project directories
+  file:
+    path: "{{ ubuntu_home }}/micromamba/notebooks"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: '0755'
+
+- name: Copy micromamba project files
+  copy:
+    src: "files/micromamba/"
+    dest: "{{ ubuntu_home }}/micromamba/"
+    owner: ubuntu
+    group: ubuntu
+
+- name: Make start.sh executable (Micromamba project)
+  file:
+    path: "{{ ubuntu_home }}/micromamba/start.sh"
+    mode: '0755'
+
+- name: Create Micromamba environment for project
+  become_user: ubuntu
+  shell: micromamba create -f env.yml -p ./env -y
+  args:
+    chdir: "{{ ubuntu_home }}/micromamba"
+    creates: "{{ ubuntu_home }}/micromamba/env"

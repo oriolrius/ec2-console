@@ -1,0 +1,29 @@
+---
+# Boilerplate: JupyterLab with UV at ~/jupyterlab
+
+- name: Create jupyterlab project directories
+  file:
+    path: "{{ ubuntu_home }}/jupyterlab/notebooks"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: '0755'
+
+- name: Copy jupyterlab project files
+  copy:
+    src: "files/jupyterlab/"
+    dest: "{{ ubuntu_home }}/jupyterlab/"
+    owner: ubuntu
+    group: ubuntu
+
+- name: Make start.sh executable (UV project)
+  file:
+    path: "{{ ubuntu_home }}/jupyterlab/start.sh"
+    mode: '0755'
+
+- name: Sync UV dependencies for jupyterlab project
+  become_user: ubuntu
+  shell: ~/.local/bin/uv sync --no-install-project
+  args:
+    chdir: "{{ ubuntu_home }}/jupyterlab"
+    creates: "{{ ubuntu_home }}/jupyterlab/.venv"

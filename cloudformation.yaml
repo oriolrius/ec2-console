@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  EC2 cloud development workstation (Ubuntu 24.04).
+  Provisioning handled separately by Ansible.
+
+Parameters:
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Existing EC2 key pair for SSH access
+
+  InstanceType:
+    Type: String
+    Default: t3a.xlarge
+    AllowedValues:
+      - t3a.xlarge   # 4 vCPU, 16 GB, AMD  — $0.1504/hr (cheapest)
+      - c6a.xlarge   # 4 vCPU,  8 GB, AMD  — $0.1530/hr (fixed perf)
+      - t3.xlarge    # 4 vCPU, 16 GB, Intel — $0.1664/hr
+      - c6i.xlarge   # 4 vCPU,  8 GB, Intel — $0.1700/hr
+      - m6a.xlarge   # 4 vCPU, 16 GB, AMD  — $0.1728/hr
+    Description: >
+      EC2 instance type (4+ vCPU). t3a.xlarge is the cheapest AMD burstable
+      option — good default for development workloads.
+
+  UbuntuAmi:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id
+    Description: Ubuntu 24.04 LTS AMI (auto-resolved via SSM parameter)
+
+Resources:
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SSH (22) and application ports (8888-8889)
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8888
+          ToPort: 8889
+          CidrIp: 0.0.0.0/0
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref UbuntuAmi
+      KeyName: !Ref KeyName
+      SecurityGroups:
+        - !Ref SecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 25
+            VolumeType: gp3
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}'
+
+Outputs:
+  PublicIP:
+    Description: Instance public IP address
+    Value: !GetAtt Instance.PublicIp
+
+  SSHCommand:
+    Description: SSH into the instance
+    Value: !Sub 'ssh -i ec2-key.pem ubuntu@${Instance.PublicIp}'
+
+  AnsibleCommand:
+    Description: Run Ansible provisioning
+    Value: !Sub 'ansible-playbook -i ${Instance.PublicIp}, playbook.yml'

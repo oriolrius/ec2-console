@@ -1,0 +1,10 @@
+{
+  "python.defaultInterpreterPath": "/home/ubuntu/micromamba/env/bin/python",
+  "jupyter.notebookFileRoot": "/home/ubuntu/micromamba",
+  "jupyter.kernels.filter": [
+    {
+      "path": "/home/ubuntu/micromamba/env/bin/python",
+      "type": "pythonEnvironment"
+    }
+  ]
+}

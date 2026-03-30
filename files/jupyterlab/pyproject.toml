@@ -1,0 +1,6 @@
+[project]
+name = "jupyterlab-uv"
+version = "0.1.0"
+description = "JupyterLab boilerplate managed with UV"
+requires-python = ">=3.12"
+dependencies = ["jupyterlab>=4.0"]
