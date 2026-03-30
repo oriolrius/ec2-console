@@ -1,7 +1,26 @@
 ---
-# Chromium browser for graphical desktop sessions
+# Google Chrome browser
 
-- name: Install Chromium browser
+- name: Add Google Chrome GPG key
+  shell: |
+    curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+      | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg
+  args:
+    creates: /etc/apt/keyrings/google-chrome.gpg
+
+- name: Add Google Chrome apt repository
+  copy:
+    dest: /etc/apt/sources.list.d/google-chrome.list
+    content: "deb [signed-by=/etc/apt/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main\n"
+    mode: '0644'
+
+- name: Install Google Chrome
+  apt:
+    name: google-chrome-stable
+    state: present
+    update_cache: true
+
+- name: Remove Chromium if present
   apt:
     name: chromium-browser
-    state: present
+    state: absent

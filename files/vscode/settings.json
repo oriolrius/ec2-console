@@ -1,0 +1,9 @@
+{
+  "window.autoDetectColorScheme": true,
+  "workbench.preferredLightColorTheme": "Dark Modern",
+  "workbench.colorTheme": "Default Dark Modern",
+  "editor.fontFamily": "'JetBrainsMono Nerd Font Mono', 'Droid Sans Mono', monospace",
+  "editor.fontSize": 14,
+  "terminal.integrated.fontFamily": "'JetBrainsMono Nerd Font Mono'",
+  "terminal.integrated.fontSize": 13
+}

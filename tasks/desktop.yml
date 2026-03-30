@@ -69,3 +69,31 @@
       fi
     owner: ubuntu
     group: ubuntu
+
+- name: Create xfconf config directory
+  become_user: ubuntu
+  file:
+    path: "{{ ubuntu_home }}/.config/xfce4/xfconf/xfce-perchannel-xml"
+    state: directory
+
+- name: Deploy XFCE panel config (remove network/volume icons, keep power manager)
+  become_user: ubuntu
+  copy:
+    src: "files/desktop/xfconf/xfce4-panel.xml"
+    dest: "{{ ubuntu_home }}/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"
+
+- name: Deploy XFCE power manager config (presentation mode on, no screen blanking)
+  become_user: ubuntu
+  copy:
+    src: "files/desktop/xfconf/xfce4-power-manager.xml"
+    dest: "{{ ubuntu_home }}/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml"
+
+- name: Disable NetworkManager applet autostart
+  copy:
+    dest: /etc/xdg/autostart/nm-applet.desktop
+    content: |
+      [Desktop Entry]
+      Type=Application
+      Name=Network
+      Hidden=true
+    mode: '0644'

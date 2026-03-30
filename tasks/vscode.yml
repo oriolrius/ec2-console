@@ -1,5 +1,5 @@
 ---
-# Visual Studio Code — desktop application
+# Visual Studio Code — desktop application + settings + extensions
 
 - name: Add Microsoft GPG key
   shell: |
@@ -19,3 +19,22 @@
     name: code
     state: present
     update_cache: true
+
+- name: Create VS Code user settings directory
+  become_user: ubuntu
+  file:
+    path: "{{ ubuntu_home }}/.config/Code/User"
+    state: directory
+
+- name: Deploy VS Code settings
+  become_user: ubuntu
+  copy:
+    src: "files/vscode/settings.json"
+    dest: "{{ ubuntu_home }}/.config/Code/User/settings.json"
+
+- name: Install VS Code extensions
+  become_user: ubuntu
+  shell: "code --install-extension {{ item }} --force 2>/dev/null || true"
+  loop: "{{ lookup('file', 'files/vscode/extensions.txt').splitlines() | select }}"
+  register: ext_result
+  changed_when: "'was successfully installed' in ext_result.stdout"
