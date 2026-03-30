@@ -3,5 +3,6 @@
 *.env
 aws_credentials.yaml
 
+.venv/
 .playwright-mcp/
 *.png

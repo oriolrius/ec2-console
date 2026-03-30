@@ -1,0 +1,8 @@
+[project]
+name = "ec2-console"
+version = "1.2.1"
+description = "EC2 cloud development workstation provisioning"
+requires-python = ">=3.10"
+dependencies = [
+    "ansible>=10",
+]

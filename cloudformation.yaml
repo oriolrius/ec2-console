@@ -22,9 +22,9 @@ Parameters:
       option — good default for development workloads.
 
   UbuntuAmi:
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id
-    Description: Ubuntu 24.04 LTS AMI (auto-resolved via SSM parameter)
+    Type: AWS::EC2::Image::Id
+    Default: ami-03957e4cfe042cca1
+    Description: Ubuntu 24.04 LTS AMI ID (eu-west-1)
 
 Resources:
   SecurityGroup:

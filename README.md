@@ -6,43 +6,44 @@ A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2
 
 ## Access methods
 
-| Method | Port | Use case |
-|---|---|---|
-| **SSH** | 22 | Terminal access |
-| **VS Code Remote SSH** | 22 | Full IDE experience with remote file editing, debugging, and Jupyter notebooks |
-| **Chrome Remote Desktop** | -- | Full XFCE graphical desktop (no inbound port -- uses Google's relay) |
-| **JupyterLab** | 8888 / 8889 | Notebook interface (UV or Micromamba) |
+| Method                          | Port        | Use case                                                                       |
+| ------------------------------- | ----------- | ------------------------------------------------------------------------------ |
+| **SSH**                   | 22          | Terminal access                                                                |
+| **VS Code Remote SSH**    | 22          | Full IDE experience with remote file editing, debugging, and Jupyter notebooks |
+| **Chrome Remote Desktop** | --          | Full XFCE graphical desktop (no inbound port -- uses Google's relay)           |
+| **JupyterLab**            | 8888 / 8889 | Notebook interface (UV or Micromamba)                                          |
 
 ## Included tooling
 
-| Tool | Tag | Purpose |
-|---|---|---|
-| **AWS CLI v2** | `awscli` | Interact with AWS services from the instance |
-| **Docker CE + Compose v2** | `docker` | Build and run containerized workloads |
-| **UV** | `uv` | Fast Python package manager |
-| **Micromamba** | `micromamba` | Conda-compatible environment manager |
-| **XFCE4 + Chrome Remote Desktop** | `desktop` | Graphical desktop via Google CRD |
-| **Kitty** | `terminal` | Terminal with native Nerd Font support |
-| **oh-my-posh** | `terminal` | Modern shell prompt with glyphs |
-| **Zellij** | `terminal` | Terminal multiplexer |
-| **Nerd Fonts** | `terminal` | JetBrainsMono + Symbols fallback |
-| **Chromium** | `browser` | Web browser for desktop sessions |
+| Tool                                              | Tag            | Purpose                                      |
+| ------------------------------------------------- | -------------- | -------------------------------------------- |
+| **AWS CLI v2**                              | `awscli`     | Interact with AWS services from the instance |
+| **Docker CE + Compose v2**                  | `docker`     | Build and run containerized workloads        |
+| **UV**                                      | `uv`         | Fast Python package manager                  |
+| **Micromamba**                              | `micromamba` | Conda-compatible environment manager         |
+| **XFCE4 + Chrome Remote Desktop**           | `desktop`    | Graphical desktop via Google CRD             |
+| **Kitty**                                   | `terminal`   | Terminal with native Nerd Font support       |
+| **oh-my-posh**                              | `terminal`   | Modern shell prompt with glyphs              |
+| **Zellij**                                  | `terminal`   | Terminal multiplexer                         |
+| **Nerd Fonts**                              | `terminal`   | JetBrainsMono + Symbols fallback             |
+| **VS Code**                                 | `vscode`     | Code editor with Python/Jupyter extensions   |
+| **Google Chrome**                           | `browser`    | Web browser for desktop sessions             |
 
 ## Boilerplate projects
 
 Two example projects under `/home/ubuntu/` demonstrate different Python environment approaches:
 
-| Project | Path | Manager | Port |
-|---|---|---|---|
-| JupyterLab (UV) | `~/jupyterlab` | UV + `pyproject.toml` | 8888 |
-| JupyterLab (Micromamba) | `~/micromamba` | Micromamba + `env.yml` | 8889 |
+| Project                 | Path             | Manager                 | Port |
+| ----------------------- | ---------------- | ----------------------- | ---- |
+| JupyterLab (UV)         | `~/jupyterlab` | UV +`pyproject.toml`  | 8888 |
+| JupyterLab (Micromamba) | `~/micromamba` | Micromamba +`env.yml` | 8889 |
 
 Both include `start.sh`, a hello-world notebook, and `.vscode/settings.json` for automatic kernel selection.
 
 ## Prerequisites
 
-- **AWS CLI** configured with valid credentials
-- **Ansible** installed locally (`pip install ansible`)
+- **AWS CLI** configured with valid credentials — install: [Windows](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-windows.html) | [macOS](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-mac.html) | [Linux](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html)
+- **UV** installed locally — install: [Windows / macOS / Linux](https://docs.astral.sh/uv/getting-started/installation/)
 
 ## Deploy
 
@@ -78,40 +79,36 @@ aws cloudformation describe-stacks \
 
 ### 3. Provision with Ansible
 
-Run everything:
-
 ```bash
-JUPYTER_IP=<public-ip> ansible-playbook playbook.yml
+uv sync
+JUPYTER_IP=<public-ip> uv run ansible-playbook playbook.yml
 ```
 
-Or run only specific components using tags:
+This installs everything. To run only specific components, use tags:
 
 ```bash
-# Only install Docker and the desktop environment
-JUPYTER_IP=<public-ip> ansible-playbook playbook.yml --tags "docker,desktop"
-
-# Only terminal tooling and browser
-JUPYTER_IP=<public-ip> ansible-playbook playbook.yml --tags "terminal,browser"
-
-# Only deploy the boilerplate projects
-JUPYTER_IP=<public-ip> ansible-playbook playbook.yml --tags projects
+JUPYTER_IP=<public-ip> uv run ansible-playbook playbook.yml --tags "docker,desktop"
 ```
 
-Available tags:
+<details>
+<summary>Available tags</summary>
 
-| Tag | What it provisions |
-|---|---|
-| `base` | System update + common packages (always runs) |
-| `awscli` | AWS CLI v2 |
-| `docker` | Docker CE + Compose plugin + ubuntu group membership |
-| `uv` | UV package manager |
-| `micromamba` | Micromamba package manager |
-| `desktop` | XFCE4 desktop + Chrome Remote Desktop |
-| `terminal` | Kitty, Nerd Fonts, oh-my-posh, Zellij |
-| `browser` | Chromium |
-| `projects` | All boilerplate projects |
-| `jupyterlab-uv` | JupyterLab UV project only |
-| `jupyterlab-micromamba` | JupyterLab Micromamba project only |
+| Tag                       | What it provisions                                   |
+| ------------------------- | ---------------------------------------------------- |
+| `base`                  | System update + common packages (always runs)        |
+| `awscli`                | AWS CLI v2                                           |
+| `docker`                | Docker CE + Compose plugin + ubuntu group membership |
+| `uv`                    | UV package manager                                   |
+| `micromamba`            | Micromamba package manager                           |
+| `desktop`               | XFCE4 desktop + Chrome Remote Desktop                |
+| `terminal`              | Kitty, Nerd Fonts, oh-my-posh, Zellij                |
+| `vscode`                | VS Code + Python/Jupyter extensions                  |
+| `browser`               | Google Chrome                                        |
+| `projects`              | All boilerplate projects                             |
+| `jupyterlab-uv`         | JupyterLab UV project only                           |
+| `jupyterlab-micromamba` | JupyterLab Micromamba project only                   |
+
+</details>
 
 The playbook is idempotent. Re-run it any time to apply updates or fix drift.
 
@@ -235,7 +232,8 @@ This destroys the instance, security group, and EBS volume. The key pair persist
 │   ├── micromamba.yml                           # Micromamba
 │   ├── desktop.yml                             # XFCE4 + Chrome Remote Desktop
 │   ├── terminal.yml                            # Kitty, Nerd Fonts, oh-my-posh, Zellij
-│   ├── browser.yml                             # Chromium
+│   ├── vscode.yml                              # VS Code + extensions
+│   ├── browser.yml                             # Google Chrome
 │   ├── project-jupyterlab-uv.yml               # JupyterLab + UV boilerplate
 │   └── project-jupyterlab-micromamba.yml        # JupyterLab + Micromamba boilerplate
 ├── files/
@@ -245,6 +243,9 @@ This destroys the instance, security group, and EBS volume. The key pair persist
 │   │   ├── kitty.conf                          # Kitty terminal config
 │   │   ├── zellij-config.kdl                   # Zellij config
 │   │   └── 10-nerd-font-symbols.conf           # Nerd Font fallback
+│   ├── vscode/
+│   │   ├── settings.json                       # VS Code user settings
+│   │   └── extensions.txt                      # Extensions to install
 │   ├── jupyterlab/                             # UV JupyterLab boilerplate
 │   └── micromamba/                             # Micromamba JupyterLab boilerplate
 └── .gitignore
@@ -252,13 +253,13 @@ This destroys the instance, security group, and EBS volume. The key pair persist
 
 ## Instance types (eu-west-1, on-demand)
 
-| Instance | CPU | vCPU | RAM | $/hr |
-|---|---|---|---|---|
-| **t3a.xlarge** | AMD (burstable) | 4 | 16 GB | $0.1504 |
-| c6a.xlarge | AMD (fixed) | 4 | 8 GB | $0.1530 |
-| t3.xlarge | Intel (burstable) | 4 | 16 GB | $0.1664 |
-| c6i.xlarge | Intel (fixed) | 4 | 8 GB | $0.1700 |
-| m6a.xlarge | AMD (general) | 4 | 16 GB | $0.1728 |
+| Instance             | CPU               | vCPU | RAM   | $/hr    |
+| -------------------- | ----------------- | ---- | ----- | ------- |
+| **t3a.xlarge** | AMD (burstable)   | 4    | 16 GB | $0.1504 |
+| c6a.xlarge           | AMD (fixed)       | 4    | 8 GB  | $0.1530 |
+| t3.xlarge            | Intel (burstable) | 4    | 16 GB | $0.1664 |
+| c6i.xlarge           | Intel (fixed)     | 4    | 8 GB  | $0.1700 |
+| m6a.xlarge           | AMD (general)     | 4    | 16 GB | $0.1728 |
 
 Override: `--parameters ParameterKey=InstanceType,ParameterValue=c6a.xlarge`
 
