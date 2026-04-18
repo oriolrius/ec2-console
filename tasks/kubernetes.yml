@@ -1,0 +1,58 @@
+---
+# Kubernetes tooling — kubectl, helm, eksctl, kind
+
+- name: Ensure apt keyrings directory exists
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Add Kubernetes GPG key
+  shell: |
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key \
+      | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  args:
+    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+- name: Add Kubernetes apt repository
+  copy:
+    dest: /etc/apt/sources.list.d/kubernetes.list
+    content: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /\n"
+    mode: '0644'
+
+- name: Install kubectl
+  apt:
+    name: kubectl
+    state: present
+    update_cache: true
+
+- name: Install Helm
+  shell: |
+    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  args:
+    creates: /usr/local/bin/helm
+
+- name: Install eksctl
+  shell: |
+    curl -sL "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz" \
+      | tar xz -C /usr/local/bin eksctl
+    chmod +x /usr/local/bin/eksctl
+  args:
+    creates: /usr/local/bin/eksctl
+
+- name: Install kind
+  shell: |
+    curl -sL -o /usr/local/bin/kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
+    chmod +x /usr/local/bin/kind
+  args:
+    creates: /usr/local/bin/kind
+
+- name: Verify Kubernetes tooling
+  become_user: ubuntu
+  shell: |
+    set -e
+    kubectl version --client --output=yaml
+    helm version --short
+    eksctl version
+    kind version
+  changed_when: false

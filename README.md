@@ -22,6 +22,7 @@ A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2
 | ------------------------------------------------- | -------------- | -------------------------------------------- |
 | **AWS CLI v2**                              | `awscli`     | Interact with AWS services from the instance |
 | **Docker CE + Compose v2**                  | `docker`     | Build and run containerized workloads        |
+| **kubectl + Helm + eksctl + kind**          | `kubernetes` | K8s CLI, chart manager, EKS provisioner, local clusters |
 | **UV**                                      | `uv`         | Fast Python package manager                  |
 | **Micromamba**                              | `micromamba` | Conda-compatible environment manager         |
 | **XFCE4 + Chrome Remote Desktop**           | `desktop`    | Graphical desktop via Google CRD             |
@@ -101,6 +102,7 @@ JUPYTER_IP=<public-ip> uv run ansible-playbook playbook.yml --tags "docker,deskt
 | `base`                  | System update + common packages (always runs)        |
 | `awscli`                | AWS CLI v2                                           |
 | `docker`                | Docker CE + Compose plugin + ubuntu group membership |
+| `kubernetes`            | kubectl, Helm, eksctl, kind                          |
 | `uv`                    | UV package manager                                   |
 | `micromamba`            | Micromamba package manager                           |
 | `desktop`               | XFCE4 desktop + Chrome Remote Desktop                |
@@ -231,6 +233,7 @@ This destroys the instance, security group, and EBS volume. The key pair persist
 │   ├── base.yml                                # System packages
 │   ├── awscli.yml                              # AWS CLI v2
 │   ├── docker.yml                              # Docker CE + Compose
+│   ├── kubernetes.yml                          # kubectl, Helm, eksctl, kind
 │   ├── uv.yml                                  # UV package manager
 │   ├── micromamba.yml                           # Micromamba
 │   ├── desktop.yml                             # XFCE4 + Chrome Remote Desktop

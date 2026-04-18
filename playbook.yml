@@ -18,6 +18,10 @@
       tags: [docker]
       import_tasks: tasks/docker.yml
 
+    - name: Kubernetes tooling (kubectl, helm, eksctl, kind)
+      tags: [kubernetes]
+      import_tasks: tasks/kubernetes.yml
+
     - name: UV package manager
       tags: [uv]
       import_tasks: tasks/uv.yml
