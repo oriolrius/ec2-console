@@ -11,7 +11,7 @@
 # driven by the console (doc-18 §3). Moving to a remote backend later requires
 # a versioned amendment and must preserve per-student isolation/locking.
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.9"
 
   backend "local" {
     # `path` is injected by `terraform init -backend-config=...`.
