@@ -596,6 +596,88 @@ cmd_start() {
   log "started ${iid}."
 }
 
+# Build the workspace -var args from persisted manifest inputs (ENV-09 helpers).
+_workspace_var_args() {
+  local env_id="$1"; shift
+  local alloc inst boot sshkey region deploykey instrkey
+  alloc="$(manifest_field "$env_id" eip_allocation_id)"
+  inst="$(input_field "$env_id" instance_type)"
+  boot="$(input_field "$env_id" bootstrap_template_path)"
+  sshkey="$(input_field "$env_id" ssh_public_key_path)"
+  region="$(input_field "$env_id" region)"; region="${region:-eu-west-1}"
+  deploykey="$(input_field "$env_id" deploy_public_key_path)"
+  instrkey="$(input_field "$env_id" instructor_public_key_path)"
+  WS_ARGS=(-var "student_id=${env_id}" -var "aws_region=${region}"
+    -var "ssh_public_key_path=${sshkey}" -var "eip_allocation_id=${alloc}"
+    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot}")
+  [ -n "$deploykey" ] && WS_ARGS+=(-var "deploy_public_key_path=${deploykey}")
+  [ -n "$instrkey" ]  && WS_ARGS+=(-var "instructor_public_key_path=${instrkey}")
+  return 0
+}
+
+# Destroy ONLY workspace resources, preserving the address/state/controller/keys
+# (ENV-09). Refuses the graded destructive drill until evidence is synced.
+cmd_workspace_destroy() {
+  local env_id="" evidence=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --evidence-synced) evidence=1; shift ;;
+      *) [ -z "$env_id" ] && { env_id="$1"; shift; } || die "unknown argument: $1" ;;
+    esac
+  done
+  [ -n "$env_id" ] || die "usage: console.sh workspace-destroy <id> --evidence-synced"
+  validate_prereqs; verify_manifest "$env_id"
+  if [ "$evidence" = 0 ]; then
+    die "refusing destructive drill: evidence-sync precondition not satisfied. Push your coursework/exam evidence to your Git repos (and GHCR) first, then re-run with --evidence-synced."
+  fi
+  on_managed_vm && die "run workspace-destroy from the controller, not the VM it destroys."
+
+  local tfstate; tfstate="$(tfstate_path "$env_id")"
+  terraform -chdir="$WORKSPACE_ROOT" init -input=false -reconfigure -backend-config="path=${tfstate}" >&2
+  log "resources in scope for destroy (workspace only):"
+  terraform -chdir="$WORKSPACE_ROOT" state list >&2 || true
+
+  acquire_lock "$env_id" "workspace-destroy"
+  local WS_ARGS; _workspace_var_args "$env_id"
+  terraform -chdir="$WORKSPACE_ROOT" destroy -input=false -auto-approve "${WS_ARGS[@]}" >&2
+
+  # Address state + EIP must remain.
+  local alloc; alloc="$(manifest_field "$env_id" eip_allocation_id)"
+  merge_manifest "$env_id" '{"instance_id":null,"connection":{"public_ip":null,"ssh":null}}'
+  log "workspace destroyed. Preserved: EIP ${alloc}, address state, controller state and keys."
+}
+
+# Destroy then rebuild the workspace, reusing the retained address (ENV-09).
+cmd_rebuild() {
+  local env_id="" evidence_flag=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --evidence-synced) evidence_flag=(--evidence-synced); shift ;;
+      *) [ -z "$env_id" ] && { env_id="$1"; shift; } || die "unknown argument: $1" ;;
+    esac
+  done
+  [ -n "$env_id" ] || die "usage: console.sh rebuild <id> --evidence-synced"
+  verify_manifest "$env_id"
+  local old_iid profile sshkey deploykey instrkey region
+  old_iid="$(manifest_field "$env_id" instance_id)"
+  profile="$(input_field "$env_id" profile)"
+  sshkey="$(input_field "$env_id" ssh_public_key_path)"
+  deploykey="$(input_field "$env_id" deploy_public_key_path)"
+  instrkey="$(input_field "$env_id" instructor_public_key_path)"
+  region="$(input_field "$env_id" region)"; region="${region:-eu-west-1}"
+  [ -n "$profile" ] && [ -n "$sshkey" ] || die "no persisted inputs; run initialize first"
+
+  cmd_workspace_destroy "$env_id" "${evidence_flag[@]}"
+  release_lock  # let initialize take its own lock
+  log "rebuilding workspace for '${env_id}' (old instance ${old_iid:-none})"
+  local iargs=(--environment-id "$env_id" --profile "$profile" --ssh-public-key "$sshkey" --region "$region")
+  [ -n "$deploykey" ] && iargs+=(--deploy-public-key "$deploykey")
+  [ -n "$instrkey" ]  && iargs+=(--instructor-public-key "$instrkey")
+  cmd_initialize "${iargs[@]}"
+  local new_iid; new_iid="$(manifest_field "$env_id" instance_id)"
+  log "rebuild complete: old instance ${old_iid:-none} -> new instance ${new_iid}"
+}
+
 # Distinct address cleanup (ENV-03). A retained address is billable; full
 # ordered final cleanup is ENV-10.
 cmd_destroy_address() {
@@ -733,6 +815,8 @@ Controller operations:
   console.sh diagnose <id> [--redacted]  Read-only environment diagnostic
   console.sh stop <id>              Stop the VM (preserve disk/EIP; still billable)
   console.sh start <id>             Start the VM
+  console.sh workspace-destroy <id> --evidence-synced   Destroy workspace (keep address)
+  console.sh rebuild <id> --evidence-synced             Destroy + rebuild workspace
   console.sh destroy-address <id> [region]     Distinct address (EIP) cleanup
   console.sh check-keys --phase <SNN> [--student p --deploy p --instructor p]
   console.sh status <id>            Print the environment manifest
@@ -755,6 +839,8 @@ main() {
     plan)            cmd_plan "$@" ;;
     diagnose)        cmd_diagnose "$@" ;;
     stop)            cmd_stop "$@" ;;
+    workspace-destroy) cmd_workspace_destroy "$@" ;;
+    rebuild)         cmd_rebuild "$@" ;;
     start)           cmd_start "$@" ;;
     destroy-address) cmd_destroy_address "$@" ;;
     check-keys)      cmd_check_keys "$@" ;;
