@@ -75,6 +75,31 @@ identity and Terraform state — the VM is disposable. Back up each
 controller-local SSH/deploy keys. Losing it means losing the ability to resume,
 plan against, or cleanly destroy the environment. Nothing here ever enters Git.
 
+## Address and workspace: two independent states
+
+The environment has **two** independent Terraform states so a VM rebuild keeps
+the same public IP (doc-18 §3):
+
+| State | Owns | State file (controller-local) | Cleanup |
+|---|---|---|---|
+| **address** | exactly one persistent Elastic IP (`aws_eip`) | `…/ec2-console/dbai/<id>/address.tfstate` | `console.sh destroy-address <id>` |
+| **workspace** | network, VM, association to the address (never the EIP itself) | `…/ec2-console/dbai/<id>/workspace.tfstate` | workspace destroy (later ENV task) |
+
+```bash
+dbai/console.sh init-address --environment-id <id> --region eu-west-1   # allocate/reuse the EIP
+dbai/console.sh destroy-address <id> eu-west-1                          # distinct address cleanup
+```
+
+`init-address` allocates the EIP once and records its `eip_allocation_id` in the
+manifest; re-running reuses the same allocation (no duplicate). The workspace
+**consumes** that allocation id and owns no `aws_eip`, so a **workspace destroy
+can never destroy the address** — only `destroy-address` can.
+
+> **A retained address is billable.** After you destroy the workspace VM, the
+> Elastic IP still exists (that is the point — the IP is preserved for the
+> rebuild) and AWS charges for an Elastic IP that is not associated with a
+> running instance. Release it with `destroy-address` at final cleanup.
+
 ## Native Terraform, one active root, and the shared lock
 
 From S6 on, students use **both** the controller and **native Terraform**

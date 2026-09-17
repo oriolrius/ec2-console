@@ -29,3 +29,12 @@ variable "environment_id" {
   description = "Per-student/instructor environment identity (non-secret)."
   type        = string
 }
+
+# The workspace CONSUMES the address allocation; it must never own aws_eip
+# (ENV-R007). Later ENV tasks associate this allocation to the instance via
+# aws_eip_association (which does not own the allocation).
+variable "eip_allocation_id" {
+  description = "EIP allocation ID from the independent address state."
+  type        = string
+  default     = null
+}

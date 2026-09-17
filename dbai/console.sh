@@ -10,6 +10,8 @@
 #   doctor           Diagnose controller prerequisites/session (ENV-05).
 #   select-backend   Select the Terraform backend for a fresh course
 #                    environment and record the selection (ENV-01).
+#   init-address     Allocate/reuse the persistent EIP in its own state (ENV-03).
+#   destroy-address  Distinct address (EIP) cleanup (ENV-03).
 #   status           Print the recorded environment manifest (ENV-02).
 #   terraform-cmd    Print the exact native Terraform invocation (ENV-04).
 #   unlock           Release a stale workspace lock (ENV-04 recovery).
@@ -23,6 +25,7 @@ set -euo pipefail
 # --- locations -------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="${SCRIPT_DIR}/terraform/workspace"
+ADDRESS_ROOT="${SCRIPT_DIR}/terraform/address"
 BOOTSTRAP_TEMPLATE="${WORKSPACE_ROOT}/templates/bootstrap.cloudinit.yaml"
 MANIFEST_SCHEMA="dbai/environment-manifest/v2"
 
@@ -169,6 +172,24 @@ finally:
 PY
 }
 
+# Merge JSON fields (from $2) into the manifest, refreshing updated_at.
+merge_manifest() {
+  local env_id="$1" fields="$2" manifest; manifest="$(manifest_path "$env_id")"
+  MANIFEST="$manifest" FIELDS="$fields" python3 - <<'PY'
+import json, os, datetime
+path = os.environ["MANIFEST"]
+m = json.load(open(path))
+m.update(json.loads(os.environ["FIELDS"]))
+m["updated_at"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+old = os.umask(0o077)
+try:
+    with open(path, "w") as f:
+        json.dump(m, f, indent=2); f.write("\n")
+finally:
+    os.umask(old)
+PY
+}
+
 # Load a manifest by id and fail CLEARLY on missing/inconsistent identity
 # metadata — never silently fall back to a different environment (AC#5).
 verify_manifest() {
@@ -262,6 +283,57 @@ cmd_status() {
   cat "$(manifest_path "$env_id")"
 }
 
+# Allocate (or reuse) the environment's persistent Elastic IP in its own
+# independent state, and record the allocation id in the manifest (ENV-03).
+cmd_init_address() {
+  local env_id="" region="eu-west-1"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --environment-id) env_id="${2:-}"; shift 2 ;;
+      --region)         region="${2:-}"; shift 2 ;;
+      *) die "unknown argument: $1" ;;
+    esac
+  done
+  [ -n "$env_id" ] || die "--environment-id is required"
+  validate_prereqs
+  verify_manifest "$env_id"
+  acquire_lock "$env_id" "init-address"
+  local addrstate; addrstate="$(address_state_path "$env_id")"
+
+  log "initializing address state for '${env_id}'"
+  terraform -chdir="$ADDRESS_ROOT" init -input=false -reconfigure \
+    -backend-config="path=${addrstate}" >&2
+  # apply is idempotent: an existing allocation in state is reused, not
+  # duplicated. State holds exactly one aws_eip.
+  terraform -chdir="$ADDRESS_ROOT" apply -input=false -auto-approve \
+    -var "environment_id=${env_id}" -var "aws_region=${region}" >&2
+
+  local alloc ip
+  alloc="$(terraform -chdir="$ADDRESS_ROOT" output -raw eip_allocation_id)"
+  ip="$(terraform -chdir="$ADDRESS_ROOT" output -raw public_ip)"
+  merge_manifest "$env_id" "$(printf '{"eip_allocation_id":"%s","connection":{"public_ip":"%s","ssh":null}}' "$alloc" "$ip")"
+  log "address ready: allocation ${alloc}, public IP ${ip} (recorded in manifest)"
+}
+
+# Distinct address cleanup (ENV-03). A retained address is billable; full
+# ordered final cleanup is ENV-10.
+cmd_destroy_address() {
+  local env_id="${1:-}" region="${2:-eu-west-1}"
+  [ -n "$env_id" ] || die "usage: console.sh destroy-address <id> [region]"
+  validate_prereqs
+  verify_manifest "$env_id"
+  acquire_lock "$env_id" "destroy-address"
+  local addrstate; addrstate="$(address_state_path "$env_id")"
+  [ -f "$addrstate" ] || die "no address state for '${env_id}'"
+  log "destroying address (EIP) for '${env_id}'"
+  terraform -chdir="$ADDRESS_ROOT" init -input=false -reconfigure \
+    -backend-config="path=${addrstate}" >&2
+  terraform -chdir="$ADDRESS_ROOT" destroy -input=false -auto-approve \
+    -var "environment_id=${env_id}" -var "aws_region=${region}" >&2
+  merge_manifest "$env_id" '{"eip_allocation_id":null,"connection":{"public_ip":null,"ssh":null}}'
+  log "address destroyed; allocation cleared from manifest"
+}
+
 # Print the EXACT native Terraform invocation + backend config for the active
 # root, so students run native Terraform against the same backend and lock
 # (doc-18 §3; ENV-04 native-CLI route).
@@ -338,6 +410,8 @@ dbai console — DBAI course Terraform controller (runs on your laptop, not the 
 Controller operations:
   console.sh doctor [--environment-id <id>] [--region <r>]   Check prerequisites/session
   console.sh select-backend --environment-id <id> [--region <r>]   Select+record backend
+  console.sh init-address --environment-id <id> [--region <r>]     Allocate/reuse the EIP
+  console.sh destroy-address <id> [region]     Distinct address (EIP) cleanup
   console.sh status <id>            Print the environment manifest
   console.sh terraform-cmd <id>     Print the exact native Terraform invocation
   console.sh unlock <id>            Release a stale workspace lock (recovery)
@@ -350,11 +424,13 @@ TXT
 main() {
   local sub="${1:-help}"; shift || true
   case "$sub" in
-    select-backend) cmd_select_backend "$@" ;;
-    status)         cmd_status "$@" ;;
-    doctor)         cmd_doctor "$@" ;;
-    terraform-cmd)  cmd_terraform_cmd "$@" ;;
-    unlock)         cmd_unlock "$@" ;;
+    select-backend)  cmd_select_backend "$@" ;;
+    status)          cmd_status "$@" ;;
+    doctor)          cmd_doctor "$@" ;;
+    init-address)    cmd_init_address "$@" ;;
+    destroy-address) cmd_destroy_address "$@" ;;
+    terraform-cmd)   cmd_terraform_cmd "$@" ;;
+    unlock)          cmd_unlock "$@" ;;
     help|-h|--help) usage ;;
     *) usage; die "unknown command: $sub" ;;
   esac
