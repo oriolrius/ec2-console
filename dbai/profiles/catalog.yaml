@@ -12,7 +12,7 @@
 schema: dbai/profile-catalog/v1
 baseline_version: "1.0.0"
 ec2_console_version: 7a0fa4f2b5512e8b34d8dee11e9779c806ad2752   # candidate pin
-bootstrap_sha256: sha256:9ec13d6b09e61714de88d51bdd0bc5b9e3d43e1434cc0d478a0a268699fd6a06
+bootstrap_sha256: sha256:8c9b26aa327ceb485a27fb00bb13bb585d6f32eb18356ea93590cf64ed48f9bc
 
 profiles:
   - name: foundations
@@ -23,7 +23,7 @@ profiles:
     ami: ami-03957e4cfe042cca1        # Ubuntu 24.04 LTS, eu-west-1
     instance_size: t3.small
     module_revision: null              # pending RECOVERY-01
-    bootstrap_sha256: sha256:9ec13d6b09e61714de88d51bdd0bc5b9e3d43e1434cc0d478a0a268699fd6a06
+    bootstrap_sha256: sha256:8c9b26aa327ceb485a27fb00bb13bb585d6f32eb18356ea93590cf64ed48f9bc
     tools:                             # version pins are future deliverables (null=pending)
       ssh: distro
       git: distro
@@ -40,7 +40,7 @@ profiles:
     ami: ami-03957e4cfe042cca1
     instance_size: t3.medium
     module_revision: null
-    bootstrap_sha256: sha256:9ec13d6b09e61714de88d51bdd0bc5b9e3d43e1434cc0d478a0a268699fd6a06
+    bootstrap_sha256: sha256:8c9b26aa327ceb485a27fb00bb13bb585d6f32eb18356ea93590cf64ed48f9bc
     tools:
       ssh: distro
       git: distro
@@ -58,7 +58,7 @@ profiles:
     ami: ami-03957e4cfe042cca1
     instance_size: t3.large
     module_revision: null
-    bootstrap_sha256: sha256:9ec13d6b09e61714de88d51bdd0bc5b9e3d43e1434cc0d478a0a268699fd6a06
+    bootstrap_sha256: sha256:8c9b26aa327ceb485a27fb00bb13bb585d6f32eb18356ea93590cf64ed48f9bc
     tools:
       ssh: distro
       git: distro

@@ -20,7 +20,8 @@ pre-S8 interface; it is introduced only at the S8 boundary.
 | `aws_region` | yes | region for the workspace |
 | `my_ip_cidr` | yes | validated CIDR |
 | `ssh_public_key_path` | yes | controller-local login public key (must exist) |
-| `deploy_public_key_path` | yes | S5 deploy public key (authorized at boot by RECOVERY-02) |
+| `deploy_public_key_path` | no | S5 deploy public key; `null` until enrolled in S5 |
+| `instructor_public_key_path` | no | instructor public key; `null` until required at S6 |
 | `eip_allocation_id` | yes | `eipalloc-*` from the address state; **consumed, not owned** |
 | `bootstrap_template_path` | yes | cloud-init template, used byte-identically |
 | `instance_type` | yes | from the phase profile |

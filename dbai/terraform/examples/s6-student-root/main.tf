@@ -33,16 +33,17 @@ provider "aws" {
 module "workspace" {
   source = "../../modules/workspace"
 
-  student_id              = var.student_id
-  aws_region              = var.aws_region
-  my_ip_cidr              = var.my_ip_cidr
-  ssh_public_key_path     = var.ssh_public_key_path
-  deploy_public_key_path  = var.deploy_public_key_path
-  eip_allocation_id       = var.eip_allocation_id
-  bootstrap_template_path = var.bootstrap_template_path
-  instance_type           = var.instance_type
-  app_ingress_cidrs       = var.app_ingress_cidrs
-  cost_tags               = var.cost_tags
+  student_id                 = var.student_id
+  aws_region                 = var.aws_region
+  my_ip_cidr                 = var.my_ip_cidr
+  ssh_public_key_path        = var.ssh_public_key_path
+  deploy_public_key_path     = var.deploy_public_key_path
+  instructor_public_key_path = var.instructor_public_key_path
+  eip_allocation_id          = var.eip_allocation_id
+  bootstrap_template_path    = var.bootstrap_template_path
+  instance_type              = var.instance_type
+  app_ingress_cidrs          = var.app_ingress_cidrs
+  cost_tags                  = var.cost_tags
 }
 
 variable "aws_region" {
@@ -60,7 +61,12 @@ variable "ssh_public_key_path" {
   type = string
 }
 variable "deploy_public_key_path" {
-  type = string
+  type    = string
+  default = null
+}
+variable "instructor_public_key_path" {
+  type    = string
+  default = null
 }
 variable "eip_allocation_id" {
   type = string

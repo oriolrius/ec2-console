@@ -33,12 +33,26 @@ variable "ssh_public_key_path" {
   }
 }
 
+# Optional: enrolled before S6 (S5). Public key only; private key never here.
 variable "deploy_public_key_path" {
-  description = "Controller-local path to the S5 deploy public key (authorized at boot by RECOVERY-02)."
+  description = "Controller-local S5 deploy public key path (null until enrolled in S5)."
   type        = string
+  default     = null
   validation {
-    condition     = fileexists(var.deploy_public_key_path)
-    error_message = "deploy_public_key_path does not exist on the controller."
+    condition     = var.deploy_public_key_path == null || fileexists(coalesce(var.deploy_public_key_path, "/"))
+    error_message = "deploy_public_key_path is set but does not exist on the controller."
+  }
+}
+
+# Optional: required from S6. The instructor public key for assigned-environment
+# fault injection (RECOVERY-R008). Public key only.
+variable "instructor_public_key_path" {
+  description = "Controller-local instructor public key path (null until required at S6)."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.instructor_public_key_path == null || fileexists(coalesce(var.instructor_public_key_path, "/"))
+    error_message = "instructor_public_key_path is set but does not exist on the controller."
   }
 }
 

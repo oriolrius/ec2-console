@@ -26,7 +26,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="${SCRIPT_DIR}/terraform/workspace"
 ADDRESS_ROOT="${SCRIPT_DIR}/terraform/address"
-BOOTSTRAP_TEMPLATE="${WORKSPACE_ROOT}/templates/bootstrap.cloudinit.yaml"
+BOOTSTRAP_TEMPLATE="${WORKSPACE_ROOT}/templates/bootstrap.cloudinit.yaml.tftpl"
 MANIFEST_SCHEMA="dbai/environment-manifest/v2"
 
 # Controller state root: per-student, outside any Git repository (doc-18 §2).
@@ -363,6 +363,41 @@ cmd_unlock() {
   rm -rf "$lockdir"
 }
 
+# Phase-aware access-key readiness (RECOVERY-02). Student access key is
+# required from S2; the S5 deploy key from S5; the instructor key from S6. A
+# key missing when its phase requires it fails readiness WITHOUT blocking
+# earlier phases.
+cmd_check_keys() {
+  local phase="" student="" deploy="" instructor=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --phase)      phase="${2:-}"; shift 2 ;;
+      --student)    student="${2:-}"; shift 2 ;;
+      --deploy)     deploy="${2:-}"; shift 2 ;;
+      --instructor) instructor="${2:-}"; shift 2 ;;
+      *) die "unknown argument: $1" ;;
+    esac
+  done
+  [ -n "$phase" ] || die "usage: console.sh check-keys --phase S2 [--student p] [--deploy p] [--instructor p]"
+  local n; n="$(printf '%s' "$phase" | tr -dc '0-9')"
+  [ -n "$n" ] || die "phase must look like S2..S14"
+
+  local ok=1
+  _need() { # name path
+    if [ -z "$2" ] || [ ! -f "$2" ]; then
+      log "MISSING required $1 key for ${phase}"; ok=0
+    else
+      log "OK $1 key enrolled"
+    fi
+  }
+  _need "student access" "$student"                 # required from S2
+  [ "$n" -ge 5 ] && _need "S5 deploy" "$deploy"     # required from S5
+  [ "$n" -ge 6 ] && _need "instructor" "$instructor" # required from S6
+
+  [ "$ok" = 1 ] || die "access keys not ready for ${phase} (earlier phases are unaffected)."
+  log "access keys ready for ${phase}."
+}
+
 # Diagnose a controller before provisioning is reported available (ENV-05).
 cmd_doctor() {
   local env_id="" region="eu-west-1"
@@ -412,6 +447,7 @@ Controller operations:
   console.sh select-backend --environment-id <id> [--region <r>]   Select+record backend
   console.sh init-address --environment-id <id> [--region <r>]     Allocate/reuse the EIP
   console.sh destroy-address <id> [region]     Distinct address (EIP) cleanup
+  console.sh check-keys --phase <SNN> [--student p --deploy p --instructor p]
   console.sh status <id>            Print the environment manifest
   console.sh terraform-cmd <id>     Print the exact native Terraform invocation
   console.sh unlock <id>            Release a stale workspace lock (recovery)
@@ -429,6 +465,7 @@ main() {
     doctor)          cmd_doctor "$@" ;;
     init-address)    cmd_init_address "$@" ;;
     destroy-address) cmd_destroy_address "$@" ;;
+    check-keys)      cmd_check_keys "$@" ;;
     terraform-cmd)   cmd_terraform_cmd "$@" ;;
     unlock)          cmd_unlock "$@" ;;
     help|-h|--help) usage ;;

@@ -4,6 +4,16 @@
 
 locals {
   name = "dbai-${var.student_id}"
+
+  # Inbound PUBLIC access keys enrolled for this environment. Student key is
+  # always present; deploy (S5) and instructor (S6) enroll when their path is
+  # supplied. No private key material is ever read here.
+  authorized_keys = compact(concat(
+    [trimspace(file(var.ssh_public_key_path))],
+    var.deploy_public_key_path != null ? [trimspace(file(var.deploy_public_key_path))] : [],
+    var.instructor_public_key_path != null ? [trimspace(file(var.instructor_public_key_path))] : [],
+  ))
+
   tags = merge({
     Project     = "ec2-console"
     Course      = "dbai"
@@ -113,9 +123,12 @@ resource "aws_instance" "this" {
   vpc_security_group_ids = [aws_security_group.this.id]
   key_name               = aws_key_pair.this.key_name
 
-  # Caller's bootstrap template, used byte-identically (no interpolation vars
-  # today). RECOVERY-02 injects the deploy public key at boot.
-  user_data = templatefile(var.bootstrap_template_path, {})
+  # Caller's bootstrap template, rendered with the enrolled PUBLIC keys. The
+  # template file is byte-identical across the controller and S6 roots; equal
+  # inputs render an equal result (RECOVERY-02).
+  user_data = templatefile(var.bootstrap_template_path, {
+    authorized_keys = local.authorized_keys
+  })
 
   root_block_device {
     volume_size = 25

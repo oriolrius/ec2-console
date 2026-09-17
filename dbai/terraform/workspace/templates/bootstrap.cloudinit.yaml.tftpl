@@ -1,0 +1,25 @@
+#cloud-config
+# DBAI workspace bootstrap template (doc-18 "Bootstrap-template input").
+#
+# The shared workspace module renders this via `bootstrap_template_path`. The
+# controller profile and the student S6 `infra/cloud-init.yaml` use this
+# BYTE-IDENTICAL template; rendered with the same authorized_keys it produces
+# the same result, so the S6 no-change plan holds. Its sha256 is recorded in
+# the environment manifest so profile drift is visible.
+#
+# authorized_keys carries ONLY PUBLIC keys (student access, and — once enrolled
+# — the S5 deploy and S6 instructor public keys). No private key ever appears
+# here. Reapplying is idempotent.
+package_update: true
+packages:
+  - git
+  - curl
+  - ca-certificates
+%{ if length(authorized_keys) > 0 ~}
+ssh_authorized_keys:
+%{ for key in authorized_keys ~}
+  - ${key}
+%{ endfor ~}
+%{ endif ~}
+runcmd:
+  - [ cloud-init-per, once, dbai-marker, sh, -c, "echo dbai-workspace-bootstrap > /etc/dbai-bootstrap" ]
