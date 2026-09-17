@@ -761,6 +761,57 @@ cmd_check_keys() {
   log "access keys ready for ${phase}."
 }
 
+# Back up the controller state set for an environment (ENV-12): both state
+# roots + the non-secret manifest, outside any repository, restricted perms.
+cmd_backup() {
+  local env_id="" out=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --out) out="${2:-}"; shift 2 ;;
+      *) [ -z "$env_id" ] && { env_id="$1"; shift; } || die "unknown argument: $1" ;;
+    esac
+  done
+  [ -n "$env_id" ] || die "usage: console.sh backup <id> [--out <path.tgz>]"
+  verify_manifest "$env_id"
+  local root dir; root="$(controller_state_root)"; dir="$(env_state_dir "$env_id")"
+  [ -z "$out" ] && out="${PWD}/dbai-backup-${env_id}-$(date -u +%Y%m%dT%H%M%SZ).tgz"
+  case "$out" in "$SCRIPT_DIR"/*|"${SCRIPT_DIR%/dbai}"/*) die "refuse to write a backup inside the repository: ${out}";; esac
+  umask 077
+  # exclude the transient lock; back up manifest + both tfstate files.
+  tar -czf "$out" -C "$root" --exclude='*/.dbai.lock' "$env_id"
+  chmod 600 "$out" 2>/dev/null || true
+  log "backup written: ${out}"
+  log "ALSO back up your controller-local private keys at their recorded key_refs paths (they are NOT in this archive)."
+}
+
+# Restore controller state from a protected backup (ENV-12). Never provisions a
+# replacement; reports a missing/inconsistent backup clearly.
+cmd_restore() {
+  local env_id="" from=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --from) from="${2:-}"; shift 2 ;;
+      *) [ -z "$env_id" ] && { env_id="$1"; shift; } || die "unknown argument: $1" ;;
+    esac
+  done
+  [ -n "$env_id" ] || die "usage: console.sh restore <id> --from <path.tgz>"
+  [ -n "$from" ] && [ -f "$from" ] || die "backup not found: '${from}' — cannot restore (no replacement is provisioned)."
+  # Verify the archive contains a matching, consistent manifest BEFORE extracting.
+  local got
+  got="$( { tar -xzOf "$from" "${env_id}/environment.json" 2>/dev/null || true; } | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("environment_id",""))
+except Exception: print("")' 2>/dev/null || true)"
+  [ "$got" = "$env_id" ] || die "backup is missing or inconsistent (no matching environment.json for '${env_id}'); refusing to restore. No replacement provisioned."
+
+  local root; root="$(controller_state_root)"
+  mkdir -p "$root"; chmod 700 "$root" 2>/dev/null || true
+  tar -xzf "$from" -C "$root"
+  chmod 700 "$(env_state_dir "$env_id")" 2>/dev/null || true
+  verify_manifest "$env_id"
+  log "restored environment '${env_id}':"
+  log "  eip=$(manifest_field "$env_id" eip_allocation_id) active_root=$(manifest_field "$env_id" active_root) backend=$(manifest_field "$env_id" backend) owner=$(manifest_field "$env_id" owner)"
+}
+
 # Diagnose a controller before provisioning is reported available (ENV-05).
 cmd_doctor() {
   local env_id="" region="eu-west-1"
@@ -819,6 +870,8 @@ Controller operations:
   console.sh rebuild <id> --evidence-synced             Destroy + rebuild workspace
   console.sh destroy-address <id> [region]     Distinct address (EIP) cleanup
   console.sh check-keys --phase <SNN> [--student p --deploy p --instructor p]
+  console.sh backup <id> [--out <path.tgz>]    Back up controller state
+  console.sh restore <id> --from <path.tgz>    Restore controller state
   console.sh status <id>            Print the environment manifest
   console.sh terraform-cmd <id>     Print the exact native Terraform invocation
   console.sh unlock <id>            Release a stale workspace lock (recovery)
@@ -844,6 +897,8 @@ main() {
     start)           cmd_start "$@" ;;
     destroy-address) cmd_destroy_address "$@" ;;
     check-keys)      cmd_check_keys "$@" ;;
+    backup)          cmd_backup "$@" ;;
+    restore)         cmd_restore "$@" ;;
     terraform-cmd)   cmd_terraform_cmd "$@" ;;
     unlock)          cmd_unlock "$@" ;;
     help|-h|--help) usage ;;
