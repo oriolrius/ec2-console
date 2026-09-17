@@ -47,6 +47,27 @@ Elastic IP**, converging to one consistent environment.
 - the profile is unknown, or no EIP has been allocated (`init-address` first);
 - the Terraform apply/boot fails — the error propagates, and no "READY" is printed.
 
+## Reading a plan / native Terraform (S6/S8/S9)
+
+The wrapper never replaces the Terraform learning objective — you still read
+plans and run native Terraform on the controller.
+
+```bash
+dbai/console.sh plan <id>          # native plan, detailed-exitcode:
+                                   #   0 = no changes, 2 = changes pending, 1 = error
+dbai/console.sh terraform-cmd <id> # the exact native invocation + backend (no secrets)
+# then run native Terraform yourself against the same state/lock:
+terraform -chdir=dbai/terraform/workspace init -backend-config="path=<state>"
+terraform -chdir=dbai/terraform/workspace plan
+```
+
+`initialize` applies the reviewed plan, then waits for **boot readiness**
+(instance status checks) and, with `--ssh-private-key`, a **profile readiness**
+probe (`cloud-init status --wait`). Connection outputs are reported **only after**
+readiness passes. A failed Terraform apply, bootstrap or readiness check exits
+nonzero and names the responsible layer (`[layer: terraform|bootstrap|readiness]`);
+none is ever labelled ready.
+
 ## Offline / fixture checks
 
 ```bash

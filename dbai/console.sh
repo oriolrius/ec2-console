@@ -80,6 +80,20 @@ except Exception:
 PY
 }
 
+# Read one field from the manifest's persisted inputs block (empty if absent).
+input_field() {
+  local manifest; manifest="$(manifest_path "$1")"
+  [ -f "$manifest" ] || return 0
+  MANIFEST="$manifest" FIELD="$2" python3 - <<'PY'
+import json, os
+try:
+    v = (json.load(open(os.environ["MANIFEST"])).get("inputs") or {}).get(os.environ["FIELD"])
+    print("" if v is None else v)
+except Exception:
+    pass
+PY
+}
+
 # Resolve THE one active root for the environment. A caller requesting a
 # different (stale) root is rejected, not applied (AC#1).
 resolve_active_root() {
@@ -340,7 +354,7 @@ cmd_init_address() {
 # existing environment reconnects with no new VM/address. Failure propagates —
 # a failed apply never reports "ready".
 cmd_initialize() {
-  local env_id="" profile="" region="eu-west-1" sshkey="" deploykey="" instrkey=""
+  local env_id="" profile="" region="eu-west-1" sshkey="" deploykey="" instrkey="" sshprivkey=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --environment-id)        env_id="${2:-}"; shift 2 ;;
@@ -348,6 +362,7 @@ cmd_initialize() {
       --ssh-public-key)        sshkey="${2:-}"; shift 2 ;;
       --deploy-public-key)     deploykey="${2:-}"; shift 2 ;;
       --instructor-public-key) instrkey="${2:-}"; shift 2 ;;
+      --ssh-private-key)       sshprivkey="${2:-}"; shift 2 ;;
       --region)                region="${2:-}"; shift 2 ;;
       *) die "unknown argument: $1" ;;
     esac
@@ -397,8 +412,76 @@ cmd_initialize() {
   iid="$(terraform -chdir="$WORKSPACE_ROOT" output -raw instance_id)"
   ip="$(terraform -chdir="$WORKSPACE_ROOT" output -raw public_ip)"
   rev="$(ec2_console_revision)"
-  merge_manifest "$env_id" "$(printf '{"instance_id":"%s","module_revision":"%s","profile_version":"%s","connection":{"public_ip":"%s","ssh":"ssh ubuntu@%s"}}' "$iid" "$rev" "$pver" "$ip" "$ip")"
+
+  # Persist resource ids + the non-secret inputs needed to plan/apply again.
+  merge_manifest "$env_id" "$(printf '{"instance_id":"%s","module_revision":"%s","profile_version":"%s","connection":{"public_ip":"%s","ssh":"ssh ubuntu@%s"},"inputs":{"profile":"%s","ssh_public_key_path":"%s","deploy_public_key_path":%s,"instructor_public_key_path":%s,"instance_type":"%s","bootstrap_template_path":"%s","region":"%s"}}' \
+    "$iid" "$rev" "$pver" "$ip" "$ip" "$profile" "$sshkey" \
+    "$([ -n "$deploykey" ] && printf '"%s"' "$deploykey" || echo null)" \
+    "$([ -n "$instrkey" ] && printf '"%s"' "$instrkey" || echo null)" \
+    "$inst" "$boot_abs" "$region")"
+
+  # Readiness (ENV-07): boot readiness first; connection is reported ONLY after
+  # it passes. A failure here is NOT labelled ready and propagates nonzero.
+  wait_readiness "$env_id" "$iid" "$ip" "$sshprivkey"
+
   log "workspace READY: instance ${iid}, public IP ${ip}, profile ${profile}"
+}
+
+# Wait for boot (and optional profile) readiness. Identifies the responsible
+# layer on failure and never reports ready (ENV-07, ENV-R017/R018).
+wait_readiness() {
+  local env_id="$1" iid="$2" ip="$3" privkey="$4" region
+  region="$(manifest_field "$env_id" aws_region)"
+  log "waiting for boot readiness (instance status checks) for ${iid}..."
+  if ! aws ec2 wait instance-status-ok --instance-ids "$iid" --region "$region" 2>/dev/null; then
+    die "[layer: readiness] instance ${iid} did not reach status-ok; NOT ready."
+  fi
+  if [ -n "$privkey" ]; then
+    log "probing profile readiness over SSH..."
+    local sshopt="-i $privkey -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+    if ! ssh $sshopt "ubuntu@${ip}" 'cloud-init status --wait' >/dev/null 2>&1; then
+      die "[layer: bootstrap] cloud-init did not complete on ${ip}; NOT ready."
+    fi
+  fi
+}
+
+# Native Terraform plan for the active root, preserving detailed-exitcode
+# (0 = no change, 2 = change, 1 = error) and reusing the persisted inputs.
+cmd_plan() {
+  local env_id="${1:-}"
+  [ -n "$env_id" ] || die "usage: console.sh plan <environment-id>"
+  validate_prereqs
+  verify_manifest "$env_id"
+  local tfstate alloc inst boot sshkey region deploykey instrkey
+  tfstate="$(tfstate_path "$env_id")"
+  alloc="$(manifest_field "$env_id" eip_allocation_id)"
+  inst="$(input_field "$env_id" instance_type)"
+  boot="$(input_field "$env_id" bootstrap_template_path)"
+  sshkey="$(input_field "$env_id" ssh_public_key_path)"
+  region="$(input_field "$env_id" region)"; region="${region:-eu-west-1}"
+  deploykey="$(input_field "$env_id" deploy_public_key_path)"
+  instrkey="$(input_field "$env_id" instructor_public_key_path)"
+  [ -n "$inst" ] && [ -n "$sshkey" ] || die "no persisted inputs; run initialize first"
+
+  terraform -chdir="$WORKSPACE_ROOT" init -input=false -reconfigure \
+    -backend-config="path=${tfstate}" >&2
+  local args=(-input=false -detailed-exitcode
+    -var "student_id=${env_id}" -var "aws_region=${region}"
+    -var "ssh_public_key_path=${sshkey}" -var "eip_allocation_id=${alloc}"
+    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot}")
+  [ -n "$deploykey" ] && args+=(-var "deploy_public_key_path=${deploykey}")
+  [ -n "$instrkey" ]  && args+=(-var "instructor_public_key_path=${instrkey}")
+
+  set +e
+  terraform -chdir="$WORKSPACE_ROOT" plan "${args[@]}"
+  local rc=$?
+  set -e
+  case "$rc" in
+    0) log "plan: no changes (detailed-exitcode 0)" ;;
+    2) log "plan: changes pending (detailed-exitcode 2)" ;;
+    *) log "plan: ERROR (exit ${rc})" ;;
+  esac
+  return "$rc"
 }
 
 # Distinct address cleanup (ENV-03). A retained address is billable; full
@@ -533,7 +616,8 @@ Controller operations:
   console.sh select-backend --environment-id <id> [--region <r>]   Select+record backend
   console.sh init-address --environment-id <id> [--region <r>]     Allocate/reuse the EIP
   console.sh initialize --environment-id <id> --profile <name> --ssh-public-key <p> \
-      [--deploy-public-key <p>] [--instructor-public-key <p>] [--region <r>]   Create/reconnect the workspace
+      [--deploy-public-key <p>] [--instructor-public-key <p>] [--ssh-private-key <p>] [--region <r>]   Create/reconnect the workspace
+  console.sh plan <id>              Native Terraform plan (detailed-exitcode)
   console.sh destroy-address <id> [region]     Distinct address (EIP) cleanup
   console.sh check-keys --phase <SNN> [--student p --deploy p --instructor p]
   console.sh status <id>            Print the environment manifest
@@ -553,6 +637,7 @@ main() {
     doctor)          cmd_doctor "$@" ;;
     init-address)    cmd_init_address "$@" ;;
     initialize)      cmd_initialize "$@" ;;
+    plan)            cmd_plan "$@" ;;
     destroy-address) cmd_destroy_address "$@" ;;
     check-keys)      cmd_check_keys "$@" ;;
     terraform-cmd)   cmd_terraform_cmd "$@" ;;
