@@ -445,6 +445,78 @@ wait_readiness() {
   fi
 }
 
+# Read-only environment diagnostic (ENV-11). Prints identity + categorized
+# prerequisite checks; --redacted emits a professor-shareable view with no
+# local paths, keys, credentials or tokens. Never prints secret values.
+cmd_diagnose() {
+  local env_id="" redacted=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --redacted) redacted=1; shift ;;
+      *) [ -z "$env_id" ] && { env_id="$1"; shift; } || die "unknown argument: $1" ;;
+    esac
+  done
+  [ -n "$env_id" ] || die "usage: console.sh diagnose <environment-id> [--redacted]"
+  verify_manifest "$env_id"
+
+  local acct region phase pver bver mver iid alloc active
+  region="$(manifest_field "$env_id" aws_region)"
+  acct="$(manifest_field "$env_id" aws_account)"
+  pver="$(manifest_field "$env_id" profile_version)"
+  bver="$(manifest_field "$env_id" baseline_version)"
+  mver="$(manifest_field "$env_id" module_revision)"
+  iid="$(manifest_field "$env_id" instance_id)"
+  alloc="$(manifest_field "$env_id" eip_allocation_id)"
+  active="$(manifest_field "$env_id" active_root)"
+  phase="${pver%%-*}"
+
+  echo "== dbai environment diagnostic: ${env_id} =="
+  echo "account:        ${acct}"
+  echo "region:         ${region}"
+  echo "phase/profile:  ${phase:-?} / ${pver:-none}"
+  echo "versions:       baseline=${bver:-?} module=${mver:-none}"
+  echo "active root:    ${active}"
+  echo "instance:       ${iid:-none}"
+  echo "eip:            ${alloc:-none}"
+  if [ "$redacted" = 0 ]; then
+    echo "backend paths:  workspace=$(tfstate_path "$env_id") address=$(address_state_path "$env_id")"
+    echo "manifest:       $(manifest_path "$env_id")"
+  fi
+
+  echo "-- prerequisite checks --"
+  local ok=1
+  # credentials
+  local sess
+  if sess="$(aws sts get-caller-identity --query Account --output text 2>/dev/null)"; then
+    if [ "$sess" = "$acct" ]; then echo "credentials:    OK (account ${sess})"
+    else echo "credentials:    FAIL (session ${sess} != environment ${acct})"; ok=0; fi
+  else echo "credentials:    FAIL (no/expired AWS session)"; ok=0; fi
+  # tools
+  local miss=""
+  for t in terraform aws python3 ssh; do command -v "$t" >/dev/null 2>&1 || miss="$miss $t"; done
+  [ -z "$miss" ] && echo "tools:          OK" || { echo "tools:          FAIL (missing:${miss})"; ok=0; }
+  # terraform state
+  if [ -f "$(tfstate_path "$env_id")" ]; then echo "terraform:      OK (workspace state present)"
+  else echo "terraform:      FAIL (no workspace state; not initialized)"; ok=0; fi
+  # profile resolves in catalog
+  if [ -n "$pver" ] && [ -n "$(profile_field "${pver%-*}" version)" ]; then echo "profile:        OK (${pver})"
+  elif [ -z "$pver" ]; then echo "profile:        (not initialized)"
+  else echo "profile:        FAIL (recorded ${pver} not in catalog)"; ok=0; fi
+  # workspace bootstrap/readiness (instance state)
+  if [ -n "$iid" ]; then
+    local st; st="$(instance_state "$env_id")"
+    case "$st" in
+      running) echo "workspace:      OK (instance running)" ;;
+      stopped) echo "workspace:      STOPPED (instance ${iid})" ;;
+      ""|None|terminated) echo "workspace:      FAIL (instance ${iid} unreachable/${st:-gone})"; ok=0 ;;
+      *) echo "workspace:      ${st} (instance ${iid})" ;;
+    esac
+  else echo "workspace:      (no instance)"; fi
+
+  echo "-- summary --"
+  [ "$ok" = 1 ] && echo "DIAGNOSIS: healthy" || { echo "DIAGNOSIS: FAILED checks above"; return 1; }
+}
+
 # Native Terraform plan for the active root, preserving detailed-exitcode
 # (0 = no change, 2 = change, 1 = error) and reusing the persisted inputs.
 cmd_plan() {
@@ -489,7 +561,7 @@ instance_state() {
   local iid region; iid="$(manifest_field "$1" instance_id)"; region="$(manifest_field "$1" aws_region)"
   [ -n "$iid" ] || return 0
   aws ec2 describe-instances --instance-ids "$iid" --region "$region" \
-    --query 'Reservations[0].Instances[0].State.Name' --output text 2>/dev/null
+    --query 'Reservations[0].Instances[0].State.Name' --output text 2>/dev/null || true
 }
 
 # Stop the workspace, preserving instance/disk/EIP (ENV-08). Idempotent.
@@ -658,6 +730,7 @@ Controller operations:
   console.sh initialize --environment-id <id> --profile <name> --ssh-public-key <p> \
       [--deploy-public-key <p>] [--instructor-public-key <p>] [--ssh-private-key <p>] [--region <r>]   Create/reconnect the workspace
   console.sh plan <id>              Native Terraform plan (detailed-exitcode)
+  console.sh diagnose <id> [--redacted]  Read-only environment diagnostic
   console.sh stop <id>              Stop the VM (preserve disk/EIP; still billable)
   console.sh start <id>             Start the VM
   console.sh destroy-address <id> [region]     Distinct address (EIP) cleanup
@@ -680,6 +753,7 @@ main() {
     init-address)    cmd_init_address "$@" ;;
     initialize)      cmd_initialize "$@" ;;
     plan)            cmd_plan "$@" ;;
+    diagnose)        cmd_diagnose "$@" ;;
     stop)            cmd_stop "$@" ;;
     start)           cmd_start "$@" ;;
     destroy-address) cmd_destroy_address "$@" ;;
