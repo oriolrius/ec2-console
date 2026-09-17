@@ -678,6 +678,77 @@ cmd_rebuild() {
   log "rebuild complete: old instance ${old_iid:-none} -> new instance ${new_iid}"
 }
 
+# Report resources still billable for an environment (ENV-10). Returns nonzero
+# if anything remains.
+report_retained() {
+  local env_id="$1" region; region="$(manifest_field "$env_id" aws_region)"; region="${region:-eu-west-1}"
+  local insts vols eips remain=0
+  insts="$(aws ec2 describe-instances --region "$region" \
+    --filters "Name=tag:Environment,Values=${env_id}" "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+    --query 'Reservations[].Instances[].InstanceId' --output text 2>/dev/null || true)"
+  vols="$(aws ec2 describe-volumes --region "$region" \
+    --filters "Name=tag:Environment,Values=${env_id}" \
+    --query 'Volumes[].VolumeId' --output text 2>/dev/null || true)"
+  eips="$(aws ec2 describe-addresses --region "$region" \
+    --filters "Name=tag:Environment,Values=${env_id}" \
+    --query 'Addresses[].AllocationId' --output text 2>/dev/null || true)"
+  echo "-- retained-resource report --"
+  [ -n "$insts" ] && { echo "instances: $insts"; remain=1; } || echo "instances: none"
+  [ -n "$vols" ]  && { echo "volumes:   $vols";  remain=1; } || echo "volumes:   none"
+  [ -n "$eips" ]  && { echo "addresses: $eips";  remain=1; } || echo "addresses: none"
+  return "$remain"
+}
+
+# Explicit final cleanup (ENV-10): workspace/storage THEN address. Separate from
+# stop/workspace-destroy; requires --confirm so the address is never released by
+# accident. Idempotent; reports and stays nonzero on any retained resource.
+cmd_final_cleanup() {
+  local env_id="" region="" confirm=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --confirm) confirm=1; shift ;;
+      --region)  region="${2:-}"; shift 2 ;;
+      *) [ -z "$env_id" ] && { env_id="$1"; shift; } || die "unknown argument: $1" ;;
+    esac
+  done
+  [ -n "$env_id" ] || die "usage: console.sh final-cleanup <id> --confirm [--region r]"
+  validate_prereqs; verify_manifest "$env_id"
+  [ "$confirm" = 1 ] || die "final-cleanup releases the PERSISTENT address and all workspace resources. This is not stop/workspace-destroy. Re-run with --confirm (exam environments: only after grading permits)."
+  region="${region:-$(manifest_field "$env_id" aws_region)}"; region="${region:-eu-west-1}"
+  acquire_lock "$env_id" "final-cleanup"
+
+  # Phase 1: workspace / storage.
+  local tfstate; tfstate="$(tfstate_path "$env_id")"
+  if [ -f "$tfstate" ]; then
+    log "phase 1: workspace/storage cleanup"
+    terraform -chdir="$WORKSPACE_ROOT" init -input=false -reconfigure -backend-config="path=${tfstate}" >&2
+    local WS_ARGS; _workspace_var_args "$env_id"
+    terraform -chdir="$WORKSPACE_ROOT" destroy -input=false -auto-approve "${WS_ARGS[@]}" >&2 || die "workspace cleanup failed; resources retained (nonzero)."
+  else
+    log "phase 1: no workspace state (already clean)"
+  fi
+  merge_manifest "$env_id" '{"instance_id":null,"connection":{"public_ip":null,"ssh":null}}'
+
+  # Phase 2: address (after workspace).
+  local addrstate; addrstate="$(address_state_path "$env_id")"
+  if [ -f "$addrstate" ]; then
+    log "phase 2: address cleanup"
+    terraform -chdir="$ADDRESS_ROOT" init -input=false -reconfigure -backend-config="path=${addrstate}" >&2
+    terraform -chdir="$ADDRESS_ROOT" destroy -input=false -auto-approve \
+      -var "environment_id=${env_id}" -var "aws_region=${region}" >&2 || die "address cleanup failed; address retained (nonzero)."
+  else
+    log "phase 2: no address state (already clean)"
+  fi
+  merge_manifest "$env_id" '{"eip_allocation_id":null}'
+
+  # Retained-resource report; nonzero until nothing billable remains.
+  if report_retained "$env_id"; then
+    log "final cleanup complete: no retained billable resources."
+  else
+    die "final cleanup incomplete: retained resources above must be accounted for."
+  fi
+}
+
 # Distinct address cleanup (ENV-03). A retained address is billable; full
 # ordered final cleanup is ENV-10.
 cmd_destroy_address() {
@@ -869,6 +940,7 @@ Controller operations:
   console.sh workspace-destroy <id> --evidence-synced   Destroy workspace (keep address)
   console.sh rebuild <id> --evidence-synced             Destroy + rebuild workspace
   console.sh destroy-address <id> [region]     Distinct address (EIP) cleanup
+  console.sh final-cleanup <id> --confirm      Explicit workspace THEN address teardown
   console.sh check-keys --phase <SNN> [--student p --deploy p --instructor p]
   console.sh backup <id> [--out <path.tgz>]    Back up controller state
   console.sh restore <id> --from <path.tgz>    Restore controller state
@@ -896,6 +968,7 @@ main() {
     rebuild)         cmd_rebuild "$@" ;;
     start)           cmd_start "$@" ;;
     destroy-address) cmd_destroy_address "$@" ;;
+    final-cleanup)   cmd_final_cleanup "$@" ;;
     check-keys)      cmd_check_keys "$@" ;;
     backup)          cmd_backup "$@" ;;
     restore)         cmd_restore "$@" ;;
