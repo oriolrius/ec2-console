@@ -100,6 +100,22 @@ can never destroy the address** — only `destroy-address` can.
 > rebuild) and AWS charges for an Elastic IP that is not associated with a
 > running instance. Release it with `destroy-address` at final cleanup.
 
+## Stopping to save cost
+
+```bash
+dbai/console.sh stop  <id>    # stop the VM when you are not actively working
+dbai/console.sh start <id>    # resume it
+```
+
+Stop the workspace outside active work in **S2–S5** and **S8–S13 (including
+S11)**. A stop/start round trip preserves the instance id, disk contents and the
+EIP association — start/stop are idempotent (stopping a stopped VM is a no-op).
+
+> **Stopping saves compute, not storage.** A stopped instance still incurs
+> **EBS disk** charges, and the **Elastic IP** remains billable while allocated.
+> Budget **notifications are just emails** — they never stop or cap resources for
+> you. Stop the VM yourself, and release the address at final cleanup.
+
 ## Native Terraform, one active root, and the shared lock
 
 From S6 on, students use **both** the controller and **native Terraform**

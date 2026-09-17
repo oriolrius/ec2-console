@@ -484,6 +484,46 @@ cmd_plan() {
   return "$rc"
 }
 
+# Current EC2 state of the environment's instance (empty if none).
+instance_state() {
+  local iid region; iid="$(manifest_field "$1" instance_id)"; region="$(manifest_field "$1" aws_region)"
+  [ -n "$iid" ] || return 0
+  aws ec2 describe-instances --instance-ids "$iid" --region "$region" \
+    --query 'Reservations[0].Instances[0].State.Name' --output text 2>/dev/null
+}
+
+# Stop the workspace, preserving instance/disk/EIP (ENV-08). Idempotent.
+cmd_stop() {
+  local env_id="${1:-}"
+  [ -n "$env_id" ] || die "usage: console.sh stop <environment-id>"
+  validate_prereqs; verify_manifest "$env_id"
+  local iid region st; iid="$(manifest_field "$env_id" instance_id)"; region="$(manifest_field "$env_id" aws_region)"
+  [ -n "$iid" ] || die "no instance for '${env_id}'"
+  st="$(instance_state "$env_id")"
+  if [ "$st" = "stopped" ]; then log "already stopped (${iid})"; return 0; fi
+  acquire_lock "$env_id" "stop"
+  log "stopping ${iid} (was: ${st})..."
+  aws ec2 stop-instances --instance-ids "$iid" --region "$region" >/dev/null || die "stop request failed for ${iid}"
+  aws ec2 wait instance-stopped --instance-ids "$iid" --region "$region" || die "instance ${iid} did not reach 'stopped'"
+  log "stopped ${iid}. Disk and EIP are retained (still billable)."
+}
+
+# Start the workspace, preserving instance/disk/EIP (ENV-08). Idempotent.
+cmd_start() {
+  local env_id="${1:-}"
+  [ -n "$env_id" ] || die "usage: console.sh start <environment-id>"
+  validate_prereqs; verify_manifest "$env_id"
+  local iid region st; iid="$(manifest_field "$env_id" instance_id)"; region="$(manifest_field "$env_id" aws_region)"
+  [ -n "$iid" ] || die "no instance for '${env_id}'"
+  st="$(instance_state "$env_id")"
+  if [ "$st" = "running" ]; then log "already running (${iid})"; return 0; fi
+  acquire_lock "$env_id" "start"
+  log "starting ${iid} (was: ${st})..."
+  aws ec2 start-instances --instance-ids "$iid" --region "$region" >/dev/null || die "start request failed for ${iid}"
+  aws ec2 wait instance-running --instance-ids "$iid" --region "$region" || die "instance ${iid} did not reach 'running'"
+  log "started ${iid}."
+}
+
 # Distinct address cleanup (ENV-03). A retained address is billable; full
 # ordered final cleanup is ENV-10.
 cmd_destroy_address() {
@@ -618,6 +658,8 @@ Controller operations:
   console.sh initialize --environment-id <id> --profile <name> --ssh-public-key <p> \
       [--deploy-public-key <p>] [--instructor-public-key <p>] [--ssh-private-key <p>] [--region <r>]   Create/reconnect the workspace
   console.sh plan <id>              Native Terraform plan (detailed-exitcode)
+  console.sh stop <id>              Stop the VM (preserve disk/EIP; still billable)
+  console.sh start <id>             Start the VM
   console.sh destroy-address <id> [region]     Distinct address (EIP) cleanup
   console.sh check-keys --phase <SNN> [--student p --deploy p --instructor p]
   console.sh status <id>            Print the environment manifest
@@ -638,6 +680,8 @@ main() {
     init-address)    cmd_init_address "$@" ;;
     initialize)      cmd_initialize "$@" ;;
     plan)            cmd_plan "$@" ;;
+    stop)            cmd_stop "$@" ;;
+    start)           cmd_start "$@" ;;
     destroy-address) cmd_destroy_address "$@" ;;
     check-keys)      cmd_check_keys "$@" ;;
     terraform-cmd)   cmd_terraform_cmd "$@" ;;
