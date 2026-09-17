@@ -7,14 +7,17 @@
 # which is unchanged and remains the supported route for non-course consumers.
 #
 # Implemented operations:
+#   doctor           Diagnose controller prerequisites/session (ENV-05).
 #   select-backend   Select the Terraform backend for a fresh course
 #                    environment and record the selection (ENV-01).
-#   status           Print the recorded backend selection for an environment.
+#   status           Print the recorded environment manifest (ENV-02).
+#   terraform-cmd    Print the exact native Terraform invocation (ENV-04).
+#   unlock           Release a stale workspace lock (ENV-04 recovery).
 #   help             Show usage.
 #
-# Later M01 tasks add: initialize, plan, apply, start/stop, doctor, rebuild,
-# workspace destroy, adopt-student-root, final-cleanup. Do NOT reference
-# unimplemented commands in student-facing material.
+# Later M01 tasks add: plan, apply, start/stop, rebuild, workspace destroy,
+# adopt-student-root, final-cleanup. Do NOT reference unimplemented commands
+# in student-facing material.
 set -euo pipefail
 
 # --- locations -------------------------------------------------------------
@@ -55,6 +58,57 @@ log()  { printf '[dbai] %s\n' "$*" >&2; }
 die()  { printf '[dbai] ERROR: %s\n' "$*" >&2; exit 1; }
 
 require_tool() { command -v "$1" >/dev/null 2>&1 || die "required tool not found: $1"; }
+
+# --- one active root + shared lock (ENV-04) --------------------------------
+# Read one top-level manifest field (empty if absent/null; non-fatal).
+manifest_field() {
+  local manifest; manifest="$(manifest_path "$1")"
+  [ -f "$manifest" ] || return 0
+  MANIFEST="$manifest" FIELD="$2" python3 - <<'PY'
+import json, os
+try:
+    v = json.load(open(os.environ["MANIFEST"])).get(os.environ["FIELD"])
+    print("" if v is None else v)
+except Exception:
+    pass
+PY
+}
+
+# Resolve THE one active root for the environment. A caller requesting a
+# different (stale) root is rejected, not applied (AC#1).
+resolve_active_root() {
+  local env_id="$1" requested="${2:-}" active
+  active="$(manifest_field "$env_id" active_root)"
+  [ -n "$active" ] || die "no active root recorded for '${env_id}' (run select-backend first)"
+  if [ -n "$requested" ] && [ "$requested" != "$active" ]; then
+    die "requested root '${requested}' is not the active root '${active}' for '${env_id}'; refusing to operate on a stale root."
+  fi
+  printf '%s' "$active"
+}
+
+# Portable advisory lock (Linux/macOS/WSL2) shared by all controller
+# mutations. Native Terraform additionally holds the local backend's own state
+# lock on the shared state file; both routes therefore serialize (doc-18 §3).
+LOCK_DIR=""
+acquire_lock() {
+  local env_id="$1" op="$2" lockdir; lockdir="$(env_state_dir "$env_id")/.dbai.lock"
+  mkdir -p "$(env_state_dir "$env_id")"
+  if ! mkdir "$lockdir" 2>/dev/null; then
+    local owner; owner="$(cat "$lockdir/owner" 2>/dev/null || echo 'unknown')"
+    die "workspace '${env_id}' is locked by another operation (${owner}). If a run was interrupted, recover with: dbai/console.sh unlock ${env_id}"
+  fi
+  LOCK_DIR="$lockdir"
+  printf 'pid=%s op=%s time=%s\n' "$$" "$op" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$lockdir/owner" 2>/dev/null || true
+  trap release_lock EXIT INT TERM
+}
+release_lock() { [ -n "$LOCK_DIR" ] && rm -rf "$LOCK_DIR" 2>/dev/null; LOCK_DIR=""; }
+
+# Detect a controller that is ONLY the disposable managed VM (doc-18 §2).
+on_managed_vm() {
+  [ -f /etc/dbai-bootstrap ] && return 0
+  [ -n "${DBAI_SIMULATE_VM:-}" ] && return 0
+  return 1
+}
 
 # Write the complete non-secret environment manifest (doc-18 §3), preserving
 # any resource identities a previous run recorded. No key/token/credential
@@ -189,6 +243,9 @@ cmd_select_backend() {
   mkdir -p "$state_dir"
   chmod 700 "$(controller_state_root)" "$state_dir" 2>/dev/null || true
 
+  # Serialize workspace mutations behind the shared lock (ENV-04).
+  acquire_lock "$env_id" "select-backend"
+
   log "selecting Terraform (local) backend for environment '${env_id}'"
   terraform -chdir="$WORKSPACE_ROOT" init -input=false -reconfigure \
     -backend-config="path=${tfstate}" >&2
@@ -205,13 +262,85 @@ cmd_status() {
   cat "$(manifest_path "$env_id")"
 }
 
+# Print the EXACT native Terraform invocation + backend config for the active
+# root, so students run native Terraform against the same backend and lock
+# (doc-18 §3; ENV-04 native-CLI route).
+cmd_terraform_cmd() {
+  local env_id="${1:-}"
+  [ -n "$env_id" ] || die "usage: console.sh terraform-cmd <environment-id>"
+  verify_manifest "$env_id"
+  local active tfstate
+  active="$(resolve_active_root "$env_id")"
+  tfstate="$(tfstate_path "$env_id")"
+  cat <<TXT
+# Active root: ${active}   (backend: local, shared state + lock)
+# Run native Terraform against the SAME state/lock as the controller:
+terraform -chdir=${SCRIPT_DIR}/terraform/workspace init -backend-config="path=${tfstate}"
+terraform -chdir=${SCRIPT_DIR}/terraform/workspace plan
+# Recover a stale lock (only when no operation is running): console.sh unlock ${env_id}
+TXT
+}
+
+# Release a stale workspace lock left by an interrupted run (ENV-04 recovery).
+cmd_unlock() {
+  local env_id="${1:-}"
+  [ -n "$env_id" ] || die "usage: console.sh unlock <environment-id>"
+  local lockdir; lockdir="$(env_state_dir "$env_id")/.dbai.lock"
+  [ -d "$lockdir" ] || { log "no lock held for '${env_id}'"; return 0; }
+  log "releasing lock: $(cat "$lockdir/owner" 2>/dev/null || echo unknown)"
+  rm -rf "$lockdir"
+}
+
+# Diagnose a controller before provisioning is reported available (ENV-05).
+cmd_doctor() {
+  local env_id="" region="eu-west-1"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --environment-id) env_id="${2:-}"; shift 2 ;;
+      --region)         region="${2:-}"; shift 2 ;;
+      *) die "unknown argument: $1" ;;
+    esac
+  done
+
+  # The controller must survive a lab-VM destroy: refuse if it IS the VM.
+  if on_managed_vm; then
+    die "this looks like the disposable managed VM; the controller must run on your laptop (Linux/macOS/WSL2), not only inside the VM (doc-18 §2)."
+  fi
+
+  local ok=1
+  for t in terraform aws python3 sha256sum ssh git; do
+    if command -v "$t" >/dev/null 2>&1; then
+      log "prereq OK: $t"
+    else
+      log "prereq MISSING: $t"; ok=0
+    fi
+  done
+
+  # Temporary sandbox session (no long-lived credentials in a repo).
+  local account
+  if account="$(aws sts get-caller-identity --query Account --output text 2>/dev/null)"; then
+    log "AWS session OK: account ${account}, region ${region}"
+  else
+    log "AWS session MISSING/EXPIRED: run your sandbox login flow"; ok=0
+  fi
+
+  log "controller state root (persistent, outside repo & VM): $(controller_state_root)"
+  [ -n "$env_id" ] && log "environment '${env_id}' state: $(env_state_dir "$env_id")"
+
+  [ "$ok" = 1 ] || die "controller is NOT ready; fix the items above before provisioning."
+  log "controller READY."
+}
+
 usage() {
   cat >&2 <<'TXT'
-dbai console — DBAI course Terraform controller
+dbai console — DBAI course Terraform controller (runs on your laptop, not the VM)
 
-Usage:
-  console.sh select-backend --environment-id <id> [--region <r>]
-  console.sh status <id>
+Controller operations:
+  console.sh doctor [--environment-id <id>] [--region <r>]   Check prerequisites/session
+  console.sh select-backend --environment-id <id> [--region <r>]   Select+record backend
+  console.sh status <id>            Print the environment manifest
+  console.sh terraform-cmd <id>     Print the exact native Terraform invocation
+  console.sh unlock <id>            Release a stale workspace lock (recovery)
   console.sh help
 
 The legacy CloudFormation + Ansible path (README.md) is separate and unchanged.
@@ -223,9 +352,15 @@ main() {
   case "$sub" in
     select-backend) cmd_select_backend "$@" ;;
     status)         cmd_status "$@" ;;
+    doctor)         cmd_doctor "$@" ;;
+    terraform-cmd)  cmd_terraform_cmd "$@" ;;
+    unlock)         cmd_unlock "$@" ;;
     help|-h|--help) usage ;;
     *) usage; die "unknown command: $sub" ;;
   esac
 }
 
-main "$@"
+# Allow `source`ing for tests without executing a command.
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+  main "$@"
+fi

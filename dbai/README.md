@@ -75,6 +75,45 @@ identity and Terraform state — the VM is disposable. Back up each
 controller-local SSH/deploy keys. Losing it means losing the ability to resume,
 plan against, or cleanly destroy the environment. Nothing here ever enters Git.
 
+## Native Terraform, one active root, and the shared lock
+
+From S6 on, students use **both** the controller and **native Terraform**
+against the *same* environment. Two rules keep those routes safe:
+
+- **One active root.** Every operation resolves the single `active_root`
+  recorded in the manifest. A request against a different (stale) root is
+  **rejected, not applied**. Print the exact native invocation for the active
+  root with:
+
+  ```bash
+  dbai/console.sh terraform-cmd <id>
+  ```
+
+  Run native Terraform using exactly that `terraform -chdir=… init
+  -backend-config=path=…` line so it shares the backend and state.
+
+- **A shared state lock.** The local backend locks the workspace state file
+  during any mutation, so a controller operation and a native `terraform apply`
+  cannot both proceed — the second fails with a clear nonzero *"Error acquiring
+  the state lock"*. Controller operations additionally take an advisory lock so
+  two controller runs cannot race. Never run the controller and native CLI
+  concurrently against the same environment.
+
+### Lock recovery
+
+If a run is interrupted, the lock and its owner context remain so you can
+recover without creating a second state copy. When you are sure no operation is
+running:
+
+```bash
+dbai/console.sh unlock <id>          # controller advisory lock
+terraform -chdir=dbai/terraform/workspace force-unlock <LOCK_ID>   # native state lock, if shown
+```
+
+> This baseline uses a **local** backend. A remote backend is **not**
+> introduced silently: adopting one must preserve per-student isolation and
+> locking and requires a versioned amendment (doc-18 §3).
+
 ## Legacy environments (retirement / import route)
 
 `select-backend` refuses to attach a CloudFormation-owned environment to the
