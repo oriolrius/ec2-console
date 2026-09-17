@@ -11,6 +11,8 @@
 #   select-backend   Select the Terraform backend for a fresh course
 #                    environment and record the selection (ENV-01).
 #   init-address     Allocate/reuse the persistent EIP in its own state (ENV-03).
+#   initialize       Create or reconnect the workspace VM (ENV-06).
+#   check-keys       Phase-aware access-key readiness (RECOVERY-02).
 #   destroy-address  Distinct address (EIP) cleanup (ENV-03).
 #   status           Print the recorded environment manifest (ENV-02).
 #   terraform-cmd    Print the exact native Terraform invocation (ENV-04).
@@ -26,6 +28,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="${SCRIPT_DIR}/terraform/workspace"
 ADDRESS_ROOT="${SCRIPT_DIR}/terraform/address"
+PROFILES_CATALOG="${SCRIPT_DIR}/profiles/catalog.yaml"
 BOOTSTRAP_TEMPLATE="${WORKSPACE_ROOT}/templates/bootstrap.cloudinit.yaml.tftpl"
 MANIFEST_SCHEMA="dbai/environment-manifest/v2"
 
@@ -105,6 +108,22 @@ acquire_lock() {
   trap release_lock EXIT INT TERM
 }
 release_lock() { [ -n "$LOCK_DIR" ] && rm -rf "$LOCK_DIR" 2>/dev/null; LOCK_DIR=""; }
+
+# Read one field of a named profile from the catalog (empty if absent).
+profile_field() {
+  local name="$1" field="$2"
+  CATALOG="$PROFILES_CATALOG" NAME="$name" FIELD="$field" python3 - <<'PY'
+import os, yaml
+try:
+    cat = yaml.safe_load(open(os.environ["CATALOG"]))
+    for p in cat.get("profiles", []):
+        if p.get("name") == os.environ["NAME"]:
+            v = p.get(os.environ["FIELD"])
+            print("" if v is None else v); break
+except Exception:
+    pass
+PY
+}
 
 # Detect a controller that is ONLY the disposable managed VM (doc-18 §2).
 on_managed_vm() {
@@ -315,6 +334,73 @@ cmd_init_address() {
   log "address ready: allocation ${alloc}, public IP ${ip} (recorded in manifest)"
 }
 
+# Create the workspace or reconnect to an already identified one (ENV-06).
+# Validates credentials/tools/profile, applies the workspace with the profile
+# inputs, and records module/profile/resource identity. Idempotent: a healthy
+# existing environment reconnects with no new VM/address. Failure propagates —
+# a failed apply never reports "ready".
+cmd_initialize() {
+  local env_id="" profile="" region="eu-west-1" sshkey="" deploykey="" instrkey=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --environment-id)        env_id="${2:-}"; shift 2 ;;
+      --profile)               profile="${2:-}"; shift 2 ;;
+      --ssh-public-key)        sshkey="${2:-}"; shift 2 ;;
+      --deploy-public-key)     deploykey="${2:-}"; shift 2 ;;
+      --instructor-public-key) instrkey="${2:-}"; shift 2 ;;
+      --region)                region="${2:-}"; shift 2 ;;
+      *) die "unknown argument: $1" ;;
+    esac
+  done
+  [ -n "$env_id" ]  || die "--environment-id is required"
+  [ -n "$profile" ] || die "--profile is required (see dbai/profiles/catalog.yaml)"
+  [ -n "$sshkey" ]  || die "--ssh-public-key is required"
+
+  validate_prereqs
+  verify_manifest "$env_id"
+
+  # Account match (AC#4): the session must match the manifest's account.
+  local acct manifest_acct
+  acct="$(aws sts get-caller-identity --query Account --output text)"
+  manifest_acct="$(manifest_field "$env_id" aws_account)"
+  [ "$acct" = "$manifest_acct" ] || die "account mismatch: session ${acct} != manifest ${manifest_acct}. Refusing; environment NOT ready."
+
+  # Resolve the profile from the catalog (AC#1/#4).
+  local inst boot boot_abs pver
+  inst="$(profile_field "$profile" instance_size)"
+  [ -n "$inst" ] || die "unknown profile '${profile}' (no instance_size in catalog)."
+  boot="$(profile_field "$profile" bootstrap_template)"
+  [ -n "$boot" ] || boot="dbai/terraform/workspace/templates/bootstrap.cloudinit.yaml.tftpl"
+  boot_abs="${SCRIPT_DIR}/../${boot}"
+  [ -f "$boot_abs" ] || die "profile bootstrap template not found: ${boot_abs}"
+  pver="$(profile_field "$profile" version)"
+
+  local alloc; alloc="$(manifest_field "$env_id" eip_allocation_id)"
+  [ -n "$alloc" ] || die "no EIP allocated for '${env_id}'; run init-address first."
+
+  local tfstate; tfstate="$(tfstate_path "$env_id")"
+  acquire_lock "$env_id" "initialize"
+
+  log "initializing workspace for '${env_id}' (profile ${profile}, ${inst})"
+  terraform -chdir="$WORKSPACE_ROOT" init -input=false -reconfigure \
+    -backend-config="path=${tfstate}" >&2
+
+  local args=(-input=false -auto-approve
+    -var "student_id=${env_id}" -var "aws_region=${region}"
+    -var "ssh_public_key_path=${sshkey}" -var "eip_allocation_id=${alloc}"
+    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot_abs}")
+  [ -n "$deploykey" ] && args+=(-var "deploy_public_key_path=${deploykey}")
+  [ -n "$instrkey" ]  && args+=(-var "instructor_public_key_path=${instrkey}")
+  terraform -chdir="$WORKSPACE_ROOT" apply "${args[@]}" >&2
+
+  local iid ip rev
+  iid="$(terraform -chdir="$WORKSPACE_ROOT" output -raw instance_id)"
+  ip="$(terraform -chdir="$WORKSPACE_ROOT" output -raw public_ip)"
+  rev="$(ec2_console_revision)"
+  merge_manifest "$env_id" "$(printf '{"instance_id":"%s","module_revision":"%s","profile_version":"%s","connection":{"public_ip":"%s","ssh":"ssh ubuntu@%s"}}' "$iid" "$rev" "$pver" "$ip" "$ip")"
+  log "workspace READY: instance ${iid}, public IP ${ip}, profile ${profile}"
+}
+
 # Distinct address cleanup (ENV-03). A retained address is billable; full
 # ordered final cleanup is ENV-10.
 cmd_destroy_address() {
@@ -446,6 +532,8 @@ Controller operations:
   console.sh doctor [--environment-id <id>] [--region <r>]   Check prerequisites/session
   console.sh select-backend --environment-id <id> [--region <r>]   Select+record backend
   console.sh init-address --environment-id <id> [--region <r>]     Allocate/reuse the EIP
+  console.sh initialize --environment-id <id> --profile <name> --ssh-public-key <p> \
+      [--deploy-public-key <p>] [--instructor-public-key <p>] [--region <r>]   Create/reconnect the workspace
   console.sh destroy-address <id> [region]     Distinct address (EIP) cleanup
   console.sh check-keys --phase <SNN> [--student p --deploy p --instructor p]
   console.sh status <id>            Print the environment manifest
@@ -464,6 +552,7 @@ main() {
     status)          cmd_status "$@" ;;
     doctor)          cmd_doctor "$@" ;;
     init-address)    cmd_init_address "$@" ;;
+    initialize)      cmd_initialize "$@" ;;
     destroy-address) cmd_destroy_address "$@" ;;
     check-keys)      cmd_check_keys "$@" ;;
     terraform-cmd)   cmd_terraform_cmd "$@" ;;
