@@ -1,0 +1,24 @@
+#cloud-config
+# Foundations profile bootstrap (PROFILE-02, doc-18 §5) — the S2–S3 minimal
+# remote development VM. Ubuntu 24.04 on t3.small. Installs ONLY: git, uv,
+# SSH (already present), minimal shell tools. Deliberately EXCLUDES Docker,
+# k3s, eksctl/EKS/kind, Micromamba and heavy desktop/notebook defaults.
+#
+# Rendered with the enrolled PUBLIC keys (authorized_keys); byte-identical file
+# across the controller and student roots. Idempotent: reapplying converges.
+package_update: true
+packages:
+  - git
+  - curl
+  - ca-certificates
+  - unzip
+%{ if length(authorized_keys) > 0 ~}
+ssh_authorized_keys:
+%{ for key in authorized_keys ~}
+  - ${key}
+%{ endfor ~}
+%{ endif ~}
+runcmd:
+  # uv (Astral) for the S2 package-management exercise — pinned installer.
+  - [ cloud-init-per, once, dbai-uv, sh, -c, "curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh" ]
+  - [ cloud-init-per, once, dbai-marker, sh, -c, "echo foundations > /etc/dbai-profile && echo dbai-workspace-bootstrap > /etc/dbai-bootstrap" ]

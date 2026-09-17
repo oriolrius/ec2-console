@@ -23,7 +23,8 @@ profiles:
     ami: ami-03957e4cfe042cca1        # Ubuntu 24.04 LTS, eu-west-1
     instance_size: t3.small
     module_revision: null              # pending RECOVERY-01
-    bootstrap_sha256: sha256:8c9b26aa327ceb485a27fb00bb13bb585d6f32eb18356ea93590cf64ed48f9bc
+    bootstrap_template: dbai/profiles/foundations/cloud-init.yaml.tftpl
+    bootstrap_sha256: sha256:5a209fb7d7a4305067f4636ee76d0c5a8f128cebe9c8e82b6fc56531e13937bd
     tools:                             # version pins are future deliverables (null=pending)
       ssh: distro
       git: distro
