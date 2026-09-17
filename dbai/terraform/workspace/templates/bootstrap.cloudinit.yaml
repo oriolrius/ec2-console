@@ -1,0 +1,18 @@
+#cloud-config
+# DBAI workspace bootstrap template (doc-18 "Bootstrap-template input").
+#
+# The shared workspace module consumes this via `bootstrap_template_path`. The
+# controller profile and the student S6 `infra/cloud-init.yaml` must use
+# BYTE-IDENTICAL content at adoption; the S6 no-change plan verifies this. Its
+# sha256 is recorded in the environment manifest so profile drift is visible.
+#
+# This is the minimal foundation. Phase profiles (M02) extend it with the
+# per-phase tool set (Docker at S4, k3s at S8, ...). Keep edits deliberate:
+# any change moves the recorded hash and surfaces as drift.
+package_update: true
+packages:
+  - git
+  - curl
+  - ca-certificates
+runcmd:
+  - [ cloud-init-per, once, dbai-marker, sh, -c, "echo dbai-workspace-bootstrap > /etc/dbai-bootstrap" ]

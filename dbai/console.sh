@@ -20,6 +20,8 @@ set -euo pipefail
 # --- locations -------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="${SCRIPT_DIR}/terraform/workspace"
+BOOTSTRAP_TEMPLATE="${WORKSPACE_ROOT}/templates/bootstrap.cloudinit.yaml"
+MANIFEST_SCHEMA="dbai/environment-manifest/v2"
 
 # Controller state root: per-student, outside any Git repository (doc-18 §2).
 # ENV-05 refines macOS/WSL2 bootstrap; this resolves all three today.
@@ -32,9 +34,21 @@ controller_state_root() {
   printf '%s/ec2-console/dbai' "$base"
 }
 
-env_state_dir() { printf '%s/%s' "$(controller_state_root)" "$1"; }
-manifest_path() { printf '%s/environment.json' "$(env_state_dir "$1")"; }
-tfstate_path()  { printf '%s/workspace.tfstate' "$(env_state_dir "$1")"; }
+env_state_dir()   { printf '%s/%s' "$(controller_state_root)" "$1"; }
+manifest_path()   { printf '%s/environment.json' "$(env_state_dir "$1")"; }
+tfstate_path()    { printf '%s/workspace.tfstate' "$(env_state_dir "$1")"; }
+address_state_path() { printf '%s/address.tfstate' "$(env_state_dir "$1")"; }
+
+# sha256 of the bootstrap template, so profile drift is visible (doc-18).
+bootstrap_hash() {
+  [ -f "$BOOTSTRAP_TEMPLATE" ] || die "bootstrap template missing: $BOOTSTRAP_TEMPLATE"
+  printf 'sha256:%s' "$(sha256sum "$BOOTSTRAP_TEMPLATE" | cut -d' ' -f1)"
+}
+
+# Git revision of the ec2-console checkout (non-secret provenance).
+ec2_console_revision() {
+  git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || printf 'unknown'
+}
 
 # --- helpers ---------------------------------------------------------------
 log()  { printf '[dbai] %s\n' "$*" >&2; }
@@ -42,9 +56,94 @@ die()  { printf '[dbai] ERROR: %s\n' "$*" >&2; exit 1; }
 
 require_tool() { command -v "$1" >/dev/null 2>&1 || die "required tool not found: $1"; }
 
+# Write the complete non-secret environment manifest (doc-18 §3), preserving
+# any resource identities a previous run recorded. No key/token/credential
+# values — key references are controller-local paths only.
+write_manifest() {
+  local env_id="$1" account="$2" region="$3"
+  local manifest tfstate addrstate boot rev
+  manifest="$(manifest_path "$env_id")"
+  tfstate="$(tfstate_path "$env_id")"
+  addrstate="$(address_state_path "$env_id")"
+  boot="$(bootstrap_hash)"
+  rev="$(ec2_console_revision)"
+  MANIFEST="$manifest" ENV_ID="$env_id" ACCOUNT="$account" REGION="$region" \
+  SCHEMA="$MANIFEST_SCHEMA" ADDR="$addrstate" WORK="$tfstate" BOOT="$boot" REV="$rev" \
+  python3 - <<'PY'
+import json, os, datetime
+path = os.environ["MANIFEST"]
+prev = {}
+if os.path.exists(path):
+    try: prev = json.load(open(path))
+    except Exception: prev = {}
+now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+env_id = os.environ["ENV_ID"]
+m = {
+    "schema": os.environ["SCHEMA"],
+    "baseline_version": "1.0.0",
+    "profile_version": prev.get("profile_version"),
+    "environment_id": env_id,
+    "aws_account": os.environ["ACCOUNT"],
+    "aws_region": os.environ["REGION"],
+    "active_root": "dbai/terraform/workspace",
+    "ec2_console": {"sha": os.environ["REV"]},
+    "module_revision": prev.get("module_revision"),
+    "backend": "local",
+    "backend_paths": {"address": os.environ["ADDR"], "workspace": os.environ["WORK"]},
+    "eip_allocation_id": prev.get("eip_allocation_id"),
+    "instance_id": prev.get("instance_id"),
+    "allowed_tags": {
+        "Project": "ec2-console", "Course": "dbai",
+        "ManagedBy": "terraform", "Environment": env_id,
+    },
+    "connection": prev.get("connection", {"public_ip": None, "ssh": None}),
+    "bootstrap_template_sha256": os.environ["BOOT"],
+    "key_refs": prev.get("key_refs", {
+        "ssh_private_key_path": None, "deploy_public_key_path": None,
+    }),
+    "owner": "terraform",
+    "selected_at": prev.get("selected_at", now),
+    "updated_at": now,
+}
+old = os.umask(0o077)
+try:
+    with open(path, "w") as f:
+        json.dump(m, f, indent=2)
+        f.write("\n")
+finally:
+    os.umask(old)
+PY
+}
+
+# Load a manifest by id and fail CLEARLY on missing/inconsistent identity
+# metadata — never silently fall back to a different environment (AC#5).
+verify_manifest() {
+  local env_id="$1" manifest
+  manifest="$(manifest_path "$env_id")"
+  [ -f "$manifest" ] || die "no environment manifest for '${env_id}' at ${manifest} (nothing selected, or wrong controller/state root)"
+  MANIFEST="$manifest" WANT="$env_id" SCHEMA="$MANIFEST_SCHEMA" python3 - <<'PY' || exit 1
+import json, os, sys
+path, want, schema = os.environ["MANIFEST"], os.environ["WANT"], os.environ["SCHEMA"]
+try:
+    m = json.load(open(path))
+except Exception as e:
+    sys.stderr.write(f"[dbai] ERROR: manifest {path} is not valid JSON: {e}\n"); sys.exit(1)
+got = m.get("environment_id")
+if got != want:
+    sys.stderr.write(f"[dbai] ERROR: manifest environment_id {got!r} != requested {want!r}; refusing to use a different environment.\n"); sys.exit(1)
+if not str(m.get("schema","")).startswith("dbai/environment-manifest/"):
+    sys.stderr.write(f"[dbai] ERROR: unrecognized manifest schema {m.get('schema')!r}.\n"); sys.exit(1)
+for req in ("aws_account","aws_region","active_root","backend_paths","bootstrap_template_sha256"):
+    if not m.get(req):
+        sys.stderr.write(f"[dbai] ERROR: manifest missing required field {req!r}; inconsistent metadata.\n"); sys.exit(1)
+PY
+}
+
 validate_prereqs() {
   require_tool terraform
   require_tool aws
+  require_tool python3
+  require_tool sha256sum
   aws sts get-caller-identity >/dev/null 2>&1 \
     || die "no valid AWS session; run your sandbox login first"
 }
@@ -94,32 +193,16 @@ cmd_select_backend() {
   terraform -chdir="$WORKSPACE_ROOT" init -input=false -reconfigure \
     -backend-config="path=${tfstate}" >&2
 
-  # Record the selection (non-secret; no keys or tokens). doc-18 §3 manifest
-  # is completed by ENV-02; ENV-01 records the backend selection itself.
-  umask 077
-  cat > "$manifest" <<JSON
-{
-  "schema": "dbai/environment-selection/v1",
-  "environment_id": "${env_id}",
-  "aws_account": "${account}",
-  "aws_region": "${region}",
-  "backend": "local",
-  "backend_config": { "path": "${tfstate}" },
-  "active_root": "dbai/terraform/workspace",
-  "owner": "terraform",
-  "selected_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-JSON
-  log "backend selection recorded: ${manifest}"
+  # Record the complete non-secret environment manifest (doc-18 §3).
+  write_manifest "$env_id" "$account" "$region"
+  log "environment manifest recorded: ${manifest}"
 }
 
 cmd_status() {
   local env_id="${1:-}"
   [ -n "$env_id" ] || die "usage: console.sh status <environment-id>"
-  local manifest
-  manifest="$(manifest_path "$env_id")"
-  [ -f "$manifest" ] || die "no backend selection recorded for '${env_id}'"
-  cat "$manifest"
+  verify_manifest "$env_id"
+  cat "$(manifest_path "$env_id")"
 }
 
 usage() {

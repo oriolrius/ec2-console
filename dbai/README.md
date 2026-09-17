@@ -34,13 +34,46 @@ dbai/console.sh status my-course-env
 ```
 
 This runs `terraform init` on `dbai/terraform/workspace` with an explicit local
-backend and writes a non-secret selection manifest to the controller state
-root (outside any Git repository):
+backend and writes a complete **non-secret environment manifest** to the
+controller state root.
 
-- Linux / WSL2: `${XDG_STATE_HOME:-$HOME/.local/state}/ec2-console/dbai/<id>/`
-- macOS: `${XDG_STATE_HOME:-$HOME/Library/Application Support}/ec2-console/dbai/<id>/`
+### Controller state root (persistent, outside repos and the VM)
 
-State, private keys and credentials never enter Git (doc-18 §2–§3).
+Per-student state lives outside any Git repository and outside the disposable
+VM (doc-18 §2), with restricted permissions (`700`):
+
+| Controller | State root (`<id>` = environment id) |
+|---|---|
+| Linux | `${XDG_STATE_HOME:-$HOME/.local/state}/ec2-console/dbai/<id>/` |
+| WSL2 | same as Linux |
+| macOS | `${XDG_STATE_HOME:-$HOME/Library/Application Support}/ec2-console/dbai/<id>/` |
+
+Each environment id resolves to its **own** subdirectory, so two environments on
+one controller never share state or metadata. Each directory holds:
+
+- `environment.json` — the non-secret manifest (below).
+- `workspace.tfstate` / `address.tfstate` — controller-owned Terraform state.
+
+### Environment manifest (`environment.json`)
+
+Records the full resource/backend/profile identity and **no secrets**:
+baseline & profile version, environment id, AWS account/region, active root,
+ec2-console & module revision, both backend paths (`address`, `workspace`), EIP
+allocation id, instance id, allowed tags, connection outputs, and the
+`bootstrap_template_sha256` (so profile drift is visible). Private keys, tokens
+and credentials are never stored — `key_refs` hold controller-local **paths**
+only (doc-18 §3).
+
+`status <id>` fails clearly if the manifest is missing or its identity is
+inconsistent — it never silently falls back to another environment.
+
+### What to retain / back up
+
+The **controller state root is the only persistent copy** of your environment
+identity and Terraform state — the VM is disposable. Back up each
+`ec2-console/dbai/<id>/` directory (manifest + `*.tfstate`) and your
+controller-local SSH/deploy keys. Losing it means losing the ability to resume,
+plan against, or cleanly destroy the environment. Nothing here ever enters Git.
 
 ## Legacy environments (retirement / import route)
 
