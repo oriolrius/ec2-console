@@ -2,12 +2,11 @@
 #
 # Baseline model: the checks below are ACCEPTED for a disposable, single-user
 # course VM and skipped WITH JUSTIFICATION. Anything not listed here hard-fails
-# CI, so any NEW misconfiguration is caught. Two entries are genuine hardening
-# gaps kept as tracked follow-ups (they live in the live-verified workspace
-# module and should be fixed + re-verified in coordination) — not permanent
-# accepts:
-#   - CKV_AWS_79   require IMDSv2   <- real fix recommended
-#   - CKV2_AWS_12  lock default SG  <- real fix recommended
+# CI, so any NEW misconfiguration is caught.
+#
+# The former hardening gaps CKV_AWS_79 (require IMDSv2) and CKV2_AWS_12 (lock
+# the default SG) have been FIXED in modules/workspace (PR #9, live-verified)
+# and are no longer skipped — Checkov now enforces them, so a regression fails.
 directory:
   - dbai/terraform
 compact: true
@@ -21,6 +20,3 @@ skip-check:
   - CKV2_AWS_19   # EIP not attached — by design (ENV-03): the address is decoupled and outlives the VM across rebuilds.
   - CKV2_AWS_11   # VPC flow logs — adds CloudWatch/S3 + IAM; out of scope/cost for a single-user course VM.
   - CKV2_AWS_41   # No IAM role on the instance — intentional; the VM carries no AWS privileges.
-  # --- Real hardening gaps: TRACKED follow-ups, remove the skip once fixed ---
-  - CKV_AWS_79    # TODO(hardening): require IMDSv2 (metadata_options { http_tokens = "required" }) in the workspace module.
-  - CKV2_AWS_12   # TODO(hardening): restrict the VPC default security group (aws_default_security_group with no rules).
