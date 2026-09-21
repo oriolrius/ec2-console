@@ -1,0 +1,24 @@
+# Local shift-left hooks — mirror the CI security/lint gates so problems are
+# caught BEFORE they are pushed. Install once (uv-based, per repo convention):
+#   uvx pre-commit install
+# Run against everything on demand:
+#   uvx pre-commit run --all-files
+repos:
+  # Secret scanning — same pinned gitleaks version as the CI Security workflow.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+
+  # Shell lint — mirrors the CI ShellCheck job.
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.10.0
+    hooks:
+      - id: shellcheck
+        args: ["--severity=warning"]
+
+  # GitHub Actions workflow lint — mirrors the CI actionlint job.
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint
