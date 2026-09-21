@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # Keep the GitHub Actions used by CI/Security workflows patched (supply chain).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore(ci)

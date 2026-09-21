@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit 1
 exec uv run jupyter lab \
   --ip=0.0.0.0 \
   --port=8888 \

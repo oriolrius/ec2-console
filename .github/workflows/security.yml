@@ -1,0 +1,46 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege: these jobs only read the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    # Run the pinned gitleaks BINARY directly (not gitleaks-action) — no
+    # GITHUB_TOKEN/license machinery, one fewer third-party action in the trust
+    # chain, and identical to the local scan. Bump GITLEAKS_VERSION to update.
+    env:
+      GITLEAKS_VERSION: "8.24.3"
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          # Full history so gitleaks scans every commit, not just the tip.
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: Scan full history
+        run: gitleaks detect --source . --no-banner --redact --verbose
+
+  secret-sentinel:
+    name: Repo secret sentinel (dbai)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan tracked dbai files for private keys / credential values
+        run: bash dbai/scripts/secret-sentinel.sh
