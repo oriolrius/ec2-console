@@ -8,6 +8,12 @@ unchanged and remains supported for non-course consumers.
 > Terraform and CloudFormation never manage the same resources. Course
 > environments start **fresh** under Terraform (doc-18 §1).
 
+> **Course region: `eu-west-1`.** This is the single standard region for all
+> course environments (the default for `select-backend` and every root/module).
+> It is fixed per environment at `select-backend` and recorded in the manifest;
+> later operations derive it from there. Override only if you deliberately need
+> another region (pass `--region` at `select-backend`).
+
 ## Controller entry point
 
 All course operations run from the controller (student laptop / macOS / WSL2),
