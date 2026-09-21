@@ -4,6 +4,8 @@ A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2
 
 **Infrastructure** is defined in CloudFormation (one command to create, one to destroy). **Provisioning** is handled by an idempotent Ansible playbook with modular, tagged task files.
 
+> **DBAI course users:** there is a separate, Terraform-based course path under [`dbai/`](dbai/README.md) (controller CLI, phase profiles, per-student state). It does not affect this CloudFormation + Ansible route, which is unchanged.
+
 [![Watch the demo](docs/demo-thumbnail.jpg)](https://youtu.be/hT7XWxzp-n0)
 > **[Watch the full demo on YouTube](https://youtu.be/hT7XWxzp-n0)** -- deployment, provisioning, and usage walkthrough (click the image above)
 

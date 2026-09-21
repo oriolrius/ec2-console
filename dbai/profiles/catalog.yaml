@@ -1,0 +1,96 @@
+# DBAI phase-profile catalog (PROFILE-01, doc-18 §5).
+#
+# A profile pins EXACTLY which module, bootstrap, platform and tools prepared an
+# environment, so teaching/exam behavior cannot drift through implicit upgrades.
+# Profiles here are `candidate` — they are frozen and qualified by later tasks
+# (PROFILE-05/06/08/10/11, capacity + boot-time). A changed tool/module/
+# bootstrap input requires a NEW profile version (never edit a published one).
+#
+# Placeholder tokens (TBD/latest/…) are rejected by validate-profiles.py. A
+# value that is genuinely not decided yet is `null` (explicitly pending), which
+# is allowed for candidates but never for a qualified reference.
+schema: dbai/profile-catalog/v1
+baseline_version: "1.0.0"
+ec2_console_version: 7a0fa4f2b5512e8b34d8dee11e9779c806ad2752   # candidate pin
+bootstrap_sha256: sha256:8c9b26aa327ceb485a27fb00bb13bb585d6f32eb18356ea93590cf64ed48f9bc
+
+profiles:
+  - name: foundations
+    version: foundations-0.1.0
+    status: candidate
+    phases: [S2, S3]
+    ubuntu: "24.04"
+    ami: ami-03957e4cfe042cca1        # Ubuntu 24.04 LTS, eu-west-1
+    instance_size: t3.small
+    module_revision: null              # pending RECOVERY-01
+    bootstrap_template: dbai/profiles/foundations/cloud-init.yaml.tftpl
+    bootstrap_sha256: sha256:5a209fb7d7a4305067f4636ee76d0c5a8f128cebe9c8e82b6fc56531e13937bd
+    tools:                             # version pins are future deliverables (null=pending)
+      ssh: distro
+      git: distro
+      uv: null
+      remote_editor: supported
+    verification_evidence: PROFILE-05  # qualifies capacity + boot time
+    student_excluded: "App repairs, feature/test solution, student-authored CI"
+
+  - name: containers
+    version: containers-0.1.0
+    status: candidate
+    phases: [S4, S5, S6, S7]
+    ubuntu: "24.04"
+    ami: ami-03957e4cfe042cca1
+    instance_size: t3.medium
+    module_revision: null
+    bootstrap_sha256: sha256:8c9b26aa327ceb485a27fb00bb13bb585d6f32eb18356ea93590cf64ed48f9bc
+    tools:
+      ssh: distro
+      git: distro
+      uv: null
+      docker: null
+      docker_compose: null
+    verification_evidence: PROFILE-08
+    student_excluded: "Student Dockerfile/Compose work, release workflow, S6 edits and recovery evidence"
+
+  - name: operations
+    version: operations-0.1.0
+    status: candidate
+    phases: [S8, S9, S10, S11, S12, S13]
+    ubuntu: "24.04"
+    ami: ami-03957e4cfe042cca1
+    instance_size: t3.large
+    module_revision: null
+    bootstrap_sha256: sha256:8c9b26aa327ceb485a27fb00bb13bb585d6f32eb18356ea93590cf64ed48f9bc
+    tools:
+      ssh: distro
+      git: distro
+      uv: null
+      docker: null
+      k3s: null
+      kubectl: null
+      helm: null
+    verification_evidence: PROFILE-09
+    student_excluded: "Student manifests/values/auth, monitoring dashboard, MLflow runs, retrieval releases"
+
+  # Practical-exam selections reuse the SAME qualified tool versions/repos; they
+  # add no new tools and must never resolve through a mutable reference.
+  - name: exam-s7-practical
+    version: exam-s7-practical-0.1.0
+    status: candidate
+    kind: practical
+    phases: [S7]
+    selects: [foundations-0.1.0, containers-0.1.0]
+    instance_size: t3.medium
+    module_revision: null
+    verification_evidence: PROFILE-06
+    student_excluded: "No pre-solved faults, no replacement grading repo"
+
+  - name: exam-s14-practical
+    version: exam-s14-practical-0.1.0
+    status: candidate
+    kind: practical
+    phases: [S14]
+    selects: [operations-0.1.0]
+    instance_size: t3.large
+    module_revision: null
+    verification_evidence: PROFILE-10
+    student_excluded: "No hidden automatic repair or fresh substitute project"

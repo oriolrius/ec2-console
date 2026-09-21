@@ -6,3 +6,9 @@ aws_credentials.yaml
 .venv/
 .playwright-mcp/
 *.png
+
+# DBAI Terraform course path — local state and working files are controller-owned
+dbai/terraform/**/.terraform/
+dbai/terraform/**/*.tfstate
+dbai/terraform/**/*.tfstate.*
+dbai/terraform/modules/**/.terraform.lock.hcl
