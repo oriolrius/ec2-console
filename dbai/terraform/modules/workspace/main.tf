@@ -81,6 +81,14 @@ resource "aws_route_table_association" "this" {
   route_table_id = aws_route_table.this.id
 }
 
+# Lock down the VPC's default security group (CKV2_AWS_12): no ingress/egress
+# rules means deny-all, so nothing can implicitly rely on an open default SG.
+# The workspace instance uses aws_security_group.this, not this one.
+resource "aws_default_security_group" "this" {
+  vpc_id = aws_vpc.this.id
+  tags   = merge(local.tags, { Name = "${local.name}-default-deny" })
+}
+
 # --- firewall --------------------------------------------------------------
 resource "aws_security_group" "this" {
   name        = "${local.name}-sg"
@@ -132,6 +140,14 @@ resource "aws_instance" "this" {
   subnet_id              = aws_subnet.this.id
   vpc_security_group_ids = [aws_security_group.this.id]
   key_name               = aws_key_pair.this.key_name
+
+  # Require IMDSv2 (CKV_AWS_79): blocks SSRF-style theft of the instance role
+  # credentials over IMDSv1. Ubuntu 24.04 cloud-init and modern AWS SDKs speak
+  # IMDSv2, so bootstrap and tooling are unaffected.
+  metadata_options {
+    http_endpoint = "enabled"
+    http_tokens   = "required"
+  }
 
   # Caller's bootstrap template, rendered with the enrolled PUBLIC keys. The
   # template file is byte-identical across the controller and S6 roots; equal
