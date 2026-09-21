@@ -25,7 +25,7 @@ jobs:
       GITLEAKS_VERSION: "8.24.3"
     steps:
       - name: Checkout (full history)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # Full history so gitleaks scans every commit, not just the tip.
           fetch-depth: 0
@@ -41,6 +41,21 @@ jobs:
     name: Repo secret sentinel (dbai)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Scan tracked dbai files for private keys / credential values
         run: bash dbai/scripts/secret-sentinel.sh
+
+  checkov:
+    name: IaC scan (checkov)
+    runs-on: ubuntu-latest
+    # Static analysis of the Terraform. Current findings are baselined in
+    # .checkov.yaml (accepted-by-design, with justification); anything new
+    # hard-fails. Bump CHECKOV_VERSION to update.
+    env:
+      CHECKOV_VERSION: "3.3.19"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+      - name: Checkov (Terraform, baselined via .checkov.yaml)
+        run: uvx "checkov@${CHECKOV_VERSION}" --config-file .checkov.yaml

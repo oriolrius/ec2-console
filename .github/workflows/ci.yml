@@ -14,11 +14,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  actionlint:
+    name: actionlint (workflow lint)
+    runs-on: ubuntu-latest
+    # Lints the workflow YAML and shellchecks embedded run: scripts; also flags
+    # unpinned/unsafe action usage. Bump ACTIONLINT_VERSION to update.
+    env:
+      ACTIONLINT_VERSION: "1.7.7"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install actionlint
+        run: |
+          curl -sSfL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin actionlint
+          actionlint --version
+      - name: Lint workflows
+        run: actionlint -color
+
   shellcheck:
     name: ShellCheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: Lint tracked shell scripts
@@ -28,8 +45,8 @@ jobs:
     name: Terraform fmt + validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: "1.9.8"
       - name: terraform fmt (check)
@@ -50,9 +67,9 @@ jobs:
     name: Profile catalog validator
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
       - name: Validate profile catalog (+ selftest)
         run: |
           uv run --with pyyaml python3 dbai/profiles/validate-profiles.py --selftest
