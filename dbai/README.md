@@ -24,13 +24,27 @@ never only from inside the VM they destroy (doc-18 §2). The entry point is
 
 | Command | Behavior |
 |---|---|
-| `console.sh select-backend --environment-id <id> [--region <r>]` | Validate prerequisites, run the CloudFormation-ownership guard, select the Terraform (local) backend for a **fresh** course environment, and record the selection in the controller state manifest. |
-| `console.sh status <id>` | Print the recorded backend selection for an environment. |
+| `console.sh doctor [--region <r>]` | Diagnose controller prerequisites and the AWS session before provisioning. |
+| `console.sh select-backend --environment-id <id> [--region <r>]` | Validate prerequisites, run the CloudFormation-ownership guard, select the Terraform (local) backend for a **fresh** course environment, and record it in the manifest. |
+| `console.sh init-address --environment-id <id> [--region <r>]` | Allocate (or reuse) the persistent Elastic IP in its own state. |
+| `console.sh initialize --environment-id <id> --profile <name> --ssh-public-key <p> [--deploy-public-key <p>] [--instructor-public-key <p>] [--ssh-private-key <p>] [--region <r>]` | Create or reconnect the workspace VM; waits for boot/profile readiness. |
+| `console.sh plan <id>` | Native Terraform plan for the active root (detailed exit code). |
+| `console.sh stop <id>` / `start <id>` | Stop/start the VM, preserving disk and address. |
+| `console.sh workspace-destroy <id> --evidence-synced` | Destroy workspace resources only (keep the address). |
+| `console.sh rebuild <id> --evidence-synced` | Destroy + rebuild the workspace, reusing the retained address. |
+| `console.sh destroy-address <id>` | Distinct address (EIP) cleanup. |
+| `console.sh final-cleanup <id> --confirm` | Explicit workspace-then-address teardown with a retained-resource report. |
+| `console.sh check-keys --phase <SNN> [...]` | Phase-aware access-key readiness. |
+| `console.sh backup <id> [--out <p>]` / `restore <id> --from <p>` | Back up / restore controller state. |
+| `console.sh status <id>` | Print the environment manifest. |
+| `console.sh diagnose <id> [--redacted]` | Read-only environment status + prerequisite diagnostics. |
+| `console.sh terraform-cmd <id>` | Print the exact native Terraform invocation. |
+| `console.sh unlock <id>` | Release a stale workspace lock (recovery). |
 | `console.sh help` | Show usage. |
 
-No other subcommands exist yet. Do not reference unimplemented operations
-(plan / apply / start / stop / doctor / rebuild / destroy / adopt / final
-cleanup) in student-facing material — they arrive in later M01 tasks.
+See the per-topic runbooks: [SETUP](./SETUP.md), [INITIALIZE](./INITIALIZE.md),
+[ACCESS](./ACCESS.md), [DIAGNOSE](./DIAGNOSE.md), [REBUILD](./REBUILD.md),
+[BACKUP](./BACKUP.md), [CLEANUP](./CLEANUP.md).
 
 ### Select the backend
 
