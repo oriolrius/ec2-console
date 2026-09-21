@@ -14,6 +14,16 @@ locals {
     var.instructor_public_key_path != null ? [trimspace(file(var.instructor_public_key_path))] : [],
   ))
 
+  # Explicit application-port CIDRs (doc-18: SSH is 0.0.0.0/0 key-only, app
+  # ports are explicit). my_ip_cidr is the caller's single "my IP"; the
+  # "0.0.0.0/32" sentinel means "no app access". app_ingress_cidrs adds any
+  # extra explicit CIDRs. The app rule is created only when at least one real
+  # CIDR is present.
+  app_cidrs = distinct(compact(concat(
+    var.my_ip_cidr == "0.0.0.0/32" ? [] : [var.my_ip_cidr],
+    var.app_ingress_cidrs,
+  )))
+
   tags = merge({
     Project     = "ec2-console"
     Course      = "dbai"
@@ -87,15 +97,15 @@ resource "aws_security_group" "this" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Application ports are opened ONLY to explicitly supplied CIDRs.
+  # Application ports are opened ONLY to explicit CIDRs (my_ip_cidr + extras).
   dynamic "ingress" {
-    for_each = length(var.app_ingress_cidrs) > 0 ? [1] : []
+    for_each = length(local.app_cidrs) > 0 ? [1] : []
     content {
       description = "Application ports (explicit CIDRs)"
       from_port   = 8888
       to_port     = 8889
       protocol    = "tcp"
-      cidr_blocks = var.app_ingress_cidrs
+      cidr_blocks = local.app_cidrs
     }
   }
 

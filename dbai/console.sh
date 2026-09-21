@@ -106,6 +106,20 @@ resolve_active_root() {
   printf '%s' "$active"
 }
 
+# Region is fixed at select-backend and recorded in the manifest — the single
+# source of truth. Derive it from the manifest; a supplied --region that
+# disagrees is rejected, so resources are never created in one region while
+# lifecycle/queries hit another (no silent cross-region split).
+resolve_region() {
+  local env_id="$1" requested="${2:-}" mreg
+  mreg="$(manifest_field "$env_id" aws_region)"
+  if [ -z "$mreg" ]; then printf '%s' "${requested:-eu-west-1}"; return 0; fi
+  if [ -n "$requested" ] && [ "$requested" != "$mreg" ]; then
+    die "region '${requested}' disagrees with the environment's recorded region '${mreg}'. Region is fixed at select-backend; omit --region or pass ${mreg}."
+  fi
+  printf '%s' "$mreg"
+}
+
 # Portable advisory lock (Linux/macOS/WSL2) shared by all controller
 # mutations. Native Terraform additionally holds the local backend's own state
 # lock on the shared state file; both routes therefore serialize (doc-18 §3).
@@ -319,17 +333,18 @@ cmd_status() {
 # Allocate (or reuse) the environment's persistent Elastic IP in its own
 # independent state, and record the allocation id in the manifest (ENV-03).
 cmd_init_address() {
-  local env_id="" region="eu-west-1"
+  local env_id="" reqregion=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --environment-id) env_id="${2:-}"; shift 2 ;;
-      --region)         region="${2:-}"; shift 2 ;;
+      --region)         reqregion="${2:-}"; shift 2 ;;
       *) die "unknown argument: $1" ;;
     esac
   done
   [ -n "$env_id" ] || die "--environment-id is required"
   validate_prereqs
   verify_manifest "$env_id"
+  local region; region="$(resolve_region "$env_id" "$reqregion")"
   acquire_lock "$env_id" "init-address"
   local addrstate; addrstate="$(address_state_path "$env_id")"
 
@@ -354,7 +369,7 @@ cmd_init_address() {
 # existing environment reconnects with no new VM/address. Failure propagates —
 # a failed apply never reports "ready".
 cmd_initialize() {
-  local env_id="" profile="" region="eu-west-1" sshkey="" deploykey="" instrkey="" sshprivkey=""
+  local env_id="" profile="" reqregion="" sshkey="" deploykey="" instrkey="" sshprivkey=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --environment-id)        env_id="${2:-}"; shift 2 ;;
@@ -363,7 +378,7 @@ cmd_initialize() {
       --deploy-public-key)     deploykey="${2:-}"; shift 2 ;;
       --instructor-public-key) instrkey="${2:-}"; shift 2 ;;
       --ssh-private-key)       sshprivkey="${2:-}"; shift 2 ;;
-      --region)                region="${2:-}"; shift 2 ;;
+      --region)                reqregion="${2:-}"; shift 2 ;;
       *) die "unknown argument: $1" ;;
     esac
   done
@@ -373,6 +388,7 @@ cmd_initialize() {
 
   validate_prereqs
   verify_manifest "$env_id"
+  local region; region="$(resolve_region "$env_id" "$reqregion")"
 
   # Account match (AC#4): the session must match the manifest's account.
   local acct manifest_acct
@@ -408,14 +424,17 @@ cmd_initialize() {
   [ -n "$instrkey" ]  && args+=(-var "instructor_public_key_path=${instrkey}")
   terraform -chdir="$WORKSPACE_ROOT" apply "${args[@]}" >&2
 
-  local iid ip rev
+  local iid ip rev bhash
   iid="$(terraform -chdir="$WORKSPACE_ROOT" output -raw instance_id)"
   ip="$(terraform -chdir="$WORKSPACE_ROOT" output -raw public_ip)"
   rev="$(ec2_console_revision)"
+  # Record the sha256 of the ACTUAL applied profile template, so the manifest's
+  # drift hash matches the profile in use (not the default workspace template).
+  bhash="sha256:$(sha256sum "$boot_abs" | cut -d' ' -f1)"
 
   # Persist resource ids + the non-secret inputs needed to plan/apply again.
-  merge_manifest "$env_id" "$(printf '{"instance_id":"%s","module_revision":"%s","profile_version":"%s","connection":{"public_ip":"%s","ssh":"ssh ubuntu@%s"},"inputs":{"profile":"%s","ssh_public_key_path":"%s","deploy_public_key_path":%s,"instructor_public_key_path":%s,"instance_type":"%s","bootstrap_template_path":"%s","region":"%s"}}' \
-    "$iid" "$rev" "$pver" "$ip" "$ip" "$profile" "$sshkey" \
+  merge_manifest "$env_id" "$(printf '{"instance_id":"%s","module_revision":"%s","profile_version":"%s","bootstrap_template_sha256":"%s","connection":{"public_ip":"%s","ssh":"ssh ubuntu@%s"},"inputs":{"profile":"%s","ssh_public_key_path":"%s","deploy_public_key_path":%s,"instructor_public_key_path":%s,"instance_type":"%s","bootstrap_template_path":"%s","region":"%s"}}' \
+    "$iid" "$rev" "$pver" "$bhash" "$ip" "$ip" "$profile" "$sshkey" \
     "$([ -n "$deploykey" ] && printf '"%s"' "$deploykey" || echo null)" \
     "$([ -n "$instrkey" ] && printf '"%s"' "$instrkey" || echo null)" \
     "$inst" "$boot_abs" "$region")"
@@ -530,7 +549,7 @@ cmd_plan() {
   inst="$(input_field "$env_id" instance_type)"
   boot="$(input_field "$env_id" bootstrap_template_path)"
   sshkey="$(input_field "$env_id" ssh_public_key_path)"
-  region="$(input_field "$env_id" region)"; region="${region:-eu-west-1}"
+  region="$(input_field "$env_id" region)"; region="${region:-$(manifest_field "$env_id" aws_region)}"; region="${region:-eu-west-1}"
   deploykey="$(input_field "$env_id" deploy_public_key_path)"
   instrkey="$(input_field "$env_id" instructor_public_key_path)"
   [ -n "$inst" ] && [ -n "$sshkey" ] || die "no persisted inputs; run initialize first"
@@ -604,7 +623,7 @@ _workspace_var_args() {
   inst="$(input_field "$env_id" instance_type)"
   boot="$(input_field "$env_id" bootstrap_template_path)"
   sshkey="$(input_field "$env_id" ssh_public_key_path)"
-  region="$(input_field "$env_id" region)"; region="${region:-eu-west-1}"
+  region="$(input_field "$env_id" region)"; region="${region:-$(manifest_field "$env_id" aws_region)}"; region="${region:-eu-west-1}"
   deploykey="$(input_field "$env_id" deploy_public_key_path)"
   instrkey="$(input_field "$env_id" instructor_public_key_path)"
   WS_ARGS=(-var "student_id=${env_id}" -var "aws_region=${region}"
@@ -664,10 +683,10 @@ cmd_rebuild() {
   sshkey="$(input_field "$env_id" ssh_public_key_path)"
   deploykey="$(input_field "$env_id" deploy_public_key_path)"
   instrkey="$(input_field "$env_id" instructor_public_key_path)"
-  region="$(input_field "$env_id" region)"; region="${region:-eu-west-1}"
+  region="$(input_field "$env_id" region)"; region="${region:-$(manifest_field "$env_id" aws_region)}"; region="${region:-eu-west-1}"
   [ -n "$profile" ] && [ -n "$sshkey" ] || die "no persisted inputs; run initialize first"
 
-  cmd_workspace_destroy "$env_id" "${evidence_flag[@]}"
+  cmd_workspace_destroy "$env_id" ${evidence_flag[@]+"${evidence_flag[@]}"}
   release_lock  # let initialize take its own lock
   log "rebuilding workspace for '${env_id}' (old instance ${old_iid:-none})"
   local iargs=(--environment-id "$env_id" --profile "$profile" --ssh-public-key "$sshkey" --region "$region")
@@ -703,18 +722,18 @@ report_retained() {
 # stop/workspace-destroy; requires --confirm so the address is never released by
 # accident. Idempotent; reports and stays nonzero on any retained resource.
 cmd_final_cleanup() {
-  local env_id="" region="" confirm=0
+  local env_id="" reqregion="" confirm=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --confirm) confirm=1; shift ;;
-      --region)  region="${2:-}"; shift 2 ;;
+      --region)  reqregion="${2:-}"; shift 2 ;;
       *) [ -z "$env_id" ] && { env_id="$1"; shift; } || die "unknown argument: $1" ;;
     esac
   done
   [ -n "$env_id" ] || die "usage: console.sh final-cleanup <id> --confirm [--region r]"
   validate_prereqs; verify_manifest "$env_id"
   [ "$confirm" = 1 ] || die "final-cleanup releases the PERSISTENT address and all workspace resources. This is not stop/workspace-destroy. Re-run with --confirm (exam environments: only after grading permits)."
-  region="${region:-$(manifest_field "$env_id" aws_region)}"; region="${region:-eu-west-1}"
+  local region; region="$(resolve_region "$env_id" "$reqregion")"
   acquire_lock "$env_id" "final-cleanup"
 
   # Phase 1: workspace / storage.
@@ -752,10 +771,11 @@ cmd_final_cleanup() {
 # Distinct address cleanup (ENV-03). A retained address is billable; full
 # ordered final cleanup is ENV-10.
 cmd_destroy_address() {
-  local env_id="${1:-}" region="${2:-eu-west-1}"
+  local env_id="${1:-}" reqregion="${2:-}"
   [ -n "$env_id" ] || die "usage: console.sh destroy-address <id> [region]"
   validate_prereqs
   verify_manifest "$env_id"
+  local region; region="$(resolve_region "$env_id" "$reqregion")"
   acquire_lock "$env_id" "destroy-address"
   local addrstate; addrstate="$(address_state_path "$env_id")"
   [ -f "$addrstate" ] || die "no address state for '${env_id}'"
@@ -846,7 +866,11 @@ cmd_backup() {
   verify_manifest "$env_id"
   local root dir; root="$(controller_state_root)"; dir="$(env_state_dir "$env_id")"
   [ -z "$out" ] && out="${PWD}/dbai-backup-${env_id}-$(date -u +%Y%m%dT%H%M%SZ).tgz"
-  case "$out" in "$SCRIPT_DIR"/*|"${SCRIPT_DIR%/dbai}"/*) die "refuse to write a backup inside the repository: ${out}";; esac
+  # Resolve to an absolute path FIRST so a relative --out can't slip a state
+  # archive into the repository past the guard below.
+  local outdir; outdir="$(cd "$(dirname "$out")" 2>/dev/null && pwd)" || die "backup directory does not exist: $(dirname "$out")"
+  out="${outdir}/$(basename "$out")"
+  case "$out" in "${SCRIPT_DIR%/dbai}"/*) die "refuse to write a backup inside the repository: ${out}";; esac
   umask 077
   # exclude the transient lock; back up manifest + both tfstate files.
   tar -czf "$out" -C "$root" --exclude='*/.dbai.lock' "$env_id"
