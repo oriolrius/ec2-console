@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit 1
 eval "$(micromamba shell hook -s bash)"
 micromamba activate -p ./env
 exec jupyter lab \

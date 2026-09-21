@@ -1,0 +1,40 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege: these jobs only read the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          # Full history so gitleaks scans every commit, not just the tip.
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          # Personal accounts need no license. ORGANIZATION-owned repos must set
+          # a GITLEAKS_LICENSE org/repo secret or this action fails.
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+  secret-sentinel:
+    name: Repo secret sentinel (dbai)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan tracked dbai files for private keys / credential values
+        run: bash dbai/scripts/secret-sentinel.sh

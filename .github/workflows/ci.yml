@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Lint tracked shell scripts
+        run: git ls-files '*.sh' | xargs shellcheck --severity=warning
+
+  terraform:
+    name: Terraform fmt + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+      - name: terraform fmt (check)
+        run: terraform fmt -check -recursive dbai/terraform
+      - name: terraform validate (each root)
+        run: |
+          set -euo pipefail
+          for root in \
+            dbai/terraform/address \
+            dbai/terraform/workspace \
+            dbai/terraform/examples/s6-student-root; do
+            echo "== validating ${root} =="
+            terraform -chdir="${root}" init -backend=false -input=false
+            terraform -chdir="${root}" validate
+          done
+
+  profiles:
+    name: Profile catalog validator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Validate profile catalog (+ selftest)
+        run: |
+          uv run --with pyyaml python3 dbai/profiles/validate-profiles.py --selftest
+          uv run --with pyyaml python3 dbai/profiles/validate-profiles.py

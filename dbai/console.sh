@@ -864,7 +864,7 @@ cmd_backup() {
   done
   [ -n "$env_id" ] || die "usage: console.sh backup <id> [--out <path.tgz>]"
   verify_manifest "$env_id"
-  local root dir; root="$(controller_state_root)"; dir="$(env_state_dir "$env_id")"
+  local root; root="$(controller_state_root)"
   [ -z "$out" ] && out="${PWD}/dbai-backup-${env_id}-$(date -u +%Y%m%dT%H%M%SZ).tgz"
   # Resolve to an absolute path FIRST so a relative --out can't slip a state
   # archive into the repository past the guard below.
