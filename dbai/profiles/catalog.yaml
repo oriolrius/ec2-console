@@ -41,8 +41,9 @@ profiles:
     ami: ami-03957e4cfe042cca1
     instance_size: t3.medium
     module_revision: null
-    bootstrap_sha256: sha256:8c9b26aa327ceb485a27fb00bb13bb585d6f32eb18356ea93590cf64ed48f9bc
-    tools:
+    bootstrap_template: dbai/profiles/containers/cloud-init.yaml.tftpl
+    bootstrap_sha256: sha256:137bb7d571dd0434ecb589a0d080a6e45b9f5a69efdb7425bb87a173d817829a
+    tools:                             # adds Docker/Compose over foundations (version pins pending)
       ssh: distro
       git: distro
       uv: null
