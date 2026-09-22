@@ -89,3 +89,14 @@ variable "cost_tags" {
 
 output "public_ip" { value = module.workspace.public_ip }
 output "instance_id" { value = module.workspace.instance_id }
+
+# S6 homework exercise (RECOVERY-07 AC#5): a convenience connection string built
+# purely from existing values. Because it is an OUTPUT — not a resource — adding
+# it and re-applying is an *outputs-only* apply: `terraform plan` shows only
+# "Changes to Outputs", 0 to add/change/destroy, so the recovered VM is NOT
+# replaced. This block is the instructor answer key; the distributed student
+# starter OMITS it, and adding it is the student's graded exercise.
+output "ssh_command" {
+  description = "Ready-to-run SSH command for the workspace (outputs-only; no resource change)."
+  value       = "ssh -i <your-dbai.pem> ubuntu@${module.workspace.public_ip}"
+}
