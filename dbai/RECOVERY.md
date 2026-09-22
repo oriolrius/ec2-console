@@ -64,3 +64,10 @@ Once `recover <id>` exits `0` and `verify-host <id>` passes, capture
 assessment preflight (M11) before resuming exam work. Controller metadata/state
 itself is recovered from a protected backup via
 [BACKUP.md](./BACKUP.md) (`console.sh restore`).
+
+When the VM itself was lost and both course applications must be brought back
+onto the replacement instance, follow the ordered application-restoration route
+in [RESTORE.md](./RESTORE.md) (RECOVERY-06): renew the VM's outbound GitHub key,
+clone both repos, verify the committed registry Compose, release the next
+hello-world version through the S5 pipeline, and restore the workbench stack with
+a course-key gateway chat — with no unversioned manual fallback.

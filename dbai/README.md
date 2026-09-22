@@ -44,6 +44,7 @@ never only from inside the VM they destroy (doc-18 §2). The entry point is
 
 See the per-topic runbooks: [SETUP](./SETUP.md), [INITIALIZE](./INITIALIZE.md),
 [ACCESS](./ACCESS.md), [DIAGNOSE](./DIAGNOSE.md), [REBUILD](./REBUILD.md),
+[RECOVERY](./RECOVERY.md), [RESTORE](./RESTORE.md), [RECONNECT](./RECONNECT.md),
 [BACKUP](./BACKUP.md), [CLEANUP](./CLEANUP.md).
 
 ### Select the backend
