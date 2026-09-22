@@ -106,6 +106,19 @@ resolve_active_root() {
   printf '%s' "$active"
 }
 
+# Map the recorded active_root to an on-disk directory to `-chdir` into. The
+# default controller root is repo-relative ('dbai/terraform/workspace'); an
+# adopted S6 student root is recorded as an absolute controller-local path
+# (RECOVERY-04). Both drive the SAME backend state under the SAME lock.
+active_root_dir() {
+  local env_id="$1" active; active="$(resolve_active_root "$env_id")"
+  case "$active" in
+    /*)                       printf '%s' "$active" ;;                 # adopted student root (absolute)
+    dbai/terraform/workspace) printf '%s' "$WORKSPACE_ROOT" ;;         # default controller root
+    *)                        printf '%s' "${SCRIPT_DIR}/../${active}" ;;
+  esac
+}
+
 # Region is fixed at select-backend and recorded in the manifest — the single
 # source of truth. Derive it from the manifest; a supplied --region that
 # disagrees is rejected, so resources are never created in one region while
@@ -554,7 +567,10 @@ cmd_plan() {
   instrkey="$(input_field "$env_id" instructor_public_key_path)"
   [ -n "$inst" ] && [ -n "$sshkey" ] || die "no persisted inputs; run initialize first"
 
-  terraform -chdir="$WORKSPACE_ROOT" init -input=false -reconfigure \
+  # Plan against THE active root (controller root, or the adopted S6 student
+  # root after adopt-student-root) — same backend state and lock (AC#5).
+  local root; root="$(active_root_dir "$env_id")"
+  terraform -chdir="$root" init -input=false -reconfigure \
     -backend-config="path=${tfstate}" >&2
   local args=(-input=false -detailed-exitcode
     -var "student_id=${env_id}" -var "aws_region=${region}"
@@ -564,7 +580,7 @@ cmd_plan() {
   [ -n "$instrkey" ]  && args+=(-var "instructor_public_key_path=${instrkey}")
 
   set +e
-  terraform -chdir="$WORKSPACE_ROOT" plan "${args[@]}"
+  terraform -chdir="$root" plan "${args[@]}"
   local rc=$?
   set -e
   case "$rc" in
@@ -573,6 +589,93 @@ cmd_plan() {
     *) log "plan: ERROR (exit ${rc})" ;;
   esac
   return "$rc"
+}
+
+# Adopt the S6 student infra root as THE active root — only after a native,
+# detailed-exitcode plan proves module/provider/address/backend/bootstrap
+# equivalence with ZERO changes (RECOVERY-04, doc-18 §3–4). It never
+# reprovisions, switches backend or copies state; a rejection leaves the prior
+# active root and its state ownership untouched.
+cmd_adopt_student_root() {
+  local env_id="" student_root="" reqregion=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --environment-id) env_id="${2:-}"; shift 2 ;;
+      --student-root)   student_root="${2:-}"; shift 2 ;;
+      --region)         reqregion="${2:-}"; shift 2 ;;
+      *) die "unknown argument: $1" ;;
+    esac
+  done
+  [ -n "$env_id" ]       || die "--environment-id is required"
+  [ -n "$student_root" ] || die "--student-root <path to ai-workbench/infra> is required"
+  validate_prereqs
+  verify_manifest "$env_id"
+  resolve_region "$env_id" "$reqregion" >/dev/null # reject a disagreeing --region
+
+  local root_abs; root_abs="$(cd "$student_root" 2>/dev/null && pwd)" \
+    || die "student root not found: ${student_root}"
+  [ -f "${root_abs}/main.tf" ] || die "student root has no main.tf: ${root_abs}"
+
+  local tfstate prior; tfstate="$(tfstate_path "$env_id")"
+  prior="$(resolve_active_root "$env_id")"
+  [ -f "$tfstate" ] || die "[reject] no workspace state for '${env_id}' (initialize first); nothing to adopt."
+  if [ "$prior" = "$root_abs" ]; then
+    log "already adopted: active root is ${root_abs}. No change."
+    return 0
+  fi
+
+  log "== adoption preflight for '${env_id}' (candidate root ${root_abs}) =="
+
+  # (1) backend/state equivalence: the SAME single local state, no second manager.
+  [ "$(manifest_field "$env_id" backend)" = "local" ] \
+    || die "[reject] environment backend is not 'local'; adoption covers the local backend only."
+  grep -q 'backend "local"' "${root_abs}/main.tf" \
+    || die "[reject] student root does not declare the local backend; refusing (no backend switch)."
+
+  # (2) provider + module + resource-address equivalence.
+  grep -q 'module "workspace"' "${root_abs}/main.tf" \
+    || die "[reject] student root has no module \"workspace\" block; resource addresses would differ."
+  grep -Eq 'version[[:space:]]*=[[:space:]]*"~> 5\.0"' "${root_abs}"/*.tf \
+    || die "[reject] student root does not pin the aws ~> 5.0 provider used by the controller root."
+
+  # (3) bootstrap-byte equivalence: student cloud-init.yaml == recorded profile bytes.
+  local student_boot want got
+  student_boot="${root_abs}/cloud-init.yaml"
+  [ -f "$student_boot" ] || die "[reject] student root missing cloud-init.yaml."
+  want="$(manifest_field "$env_id" bootstrap_template_sha256)"
+  got="sha256:$(sha256sum "$student_boot" | cut -d' ' -f1)"
+  [ "$want" = "$got" ] \
+    || die "[reject] bootstrap bytes differ (manifest ${want} != student ${got}); a rebuild would replace the VM. Adoption refused; active root unchanged (${prior})."
+  log "preflight OK: local backend, module \"workspace\", aws ~> 5.0, bootstrap ${got}."
+
+  # (4) native equivalence plan against the SAME state: exit 0 = unchanged (adopt),
+  #     2 = changes (reject), 1 = error (reject).
+  acquire_lock "$env_id" "adopt-student-root"
+  terraform -chdir="$root_abs" init -input=false -reconfigure \
+    -backend-config="path=${tfstate}" >&2
+  local WS_ARGS; _workspace_var_args "$env_id"
+  local i
+  for i in "${!WS_ARGS[@]}"; do
+    case "${WS_ARGS[$i]}" in
+      bootstrap_template_path=*) WS_ARGS[$i]="bootstrap_template_path=${student_boot}" ;;
+    esac
+  done
+  log "running detailed-exitcode equivalence plan in the student root..."
+  set +e
+  terraform -chdir="$root_abs" plan -input=false -detailed-exitcode "${WS_ARGS[@]}" >&2
+  local rc=$?
+  set -e
+  case "$rc" in
+    0) : ;;
+    2) die "[reject] student root plan shows CHANGES (exit 2): configuration is NOT equivalent. Active root unchanged (${prior}); no state handover." ;;
+    *) die "[error] student root plan failed (exit ${rc}). Active root unchanged (${prior})." ;;
+  esac
+
+  # (5) switch ONLY the active-root path; state/backend/resource identity and the
+  #     installed public-key contract are unchanged, with no second state copy.
+  merge_manifest "$env_id" "$(printf '{"active_root":"%s"}' "$root_abs")"
+  log "ADOPTED: active root -> ${root_abs}"
+  log "unchanged: backend=local, state=${tfstate} (no copy), EIP=$(manifest_field "$env_id" eip_allocation_id), instance=$(manifest_field "$env_id" instance_id). Controller plan + terraform-cmd now use this root under the shared lock."
 }
 
 # Current EC2 state of the environment's instance (empty if none).
@@ -795,14 +898,15 @@ cmd_terraform_cmd() {
   local env_id="${1:-}"
   [ -n "$env_id" ] || die "usage: console.sh terraform-cmd <environment-id>"
   verify_manifest "$env_id"
-  local active tfstate
+  local active root tfstate
   active="$(resolve_active_root "$env_id")"
+  root="$(active_root_dir "$env_id")"
   tfstate="$(tfstate_path "$env_id")"
   cat <<TXT
 # Active root: ${active}   (backend: local, shared state + lock)
 # Run native Terraform against the SAME state/lock as the controller:
-terraform -chdir=${SCRIPT_DIR}/terraform/workspace init -backend-config="path=${tfstate}"
-terraform -chdir=${SCRIPT_DIR}/terraform/workspace plan
+terraform -chdir=${root} init -backend-config="path=${tfstate}"
+terraform -chdir=${root} plan
 # Recover a stale lock (only when no operation is running): console.sh unlock ${env_id}
 TXT
 }
@@ -958,6 +1062,8 @@ Controller operations:
   console.sh initialize --environment-id <id> --profile <name> --ssh-public-key <p> \
       [--deploy-public-key <p>] [--instructor-public-key <p>] [--ssh-private-key <p>] [--region <r>]   Create/reconnect the workspace
   console.sh plan <id>              Native Terraform plan (detailed-exitcode)
+  console.sh adopt-student-root --environment-id <id> --student-root <ai-workbench/infra> [--region <r>]
+                                    Adopt the S6 student root after a zero-change plan
   console.sh diagnose <id> [--redacted]  Read-only environment diagnostic
   console.sh stop <id>              Stop the VM (preserve disk/EIP; still billable)
   console.sh start <id>             Start the VM
@@ -986,6 +1092,7 @@ main() {
     init-address)    cmd_init_address "$@" ;;
     initialize)      cmd_initialize "$@" ;;
     plan)            cmd_plan "$@" ;;
+    adopt-student-root) cmd_adopt_student_root "$@" ;;
     diagnose)        cmd_diagnose "$@" ;;
     stop)            cmd_stop "$@" ;;
     workspace-destroy) cmd_workspace_destroy "$@" ;;
