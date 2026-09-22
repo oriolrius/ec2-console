@@ -53,23 +53,25 @@ profiles:
     student_excluded: "Student Dockerfile/Compose work, release workflow, S6 edits and recovery evidence"
 
   - name: operations
-    version: operations-0.1.0
+    version: operations-0.2.0                 # PROFILE-04: S8 k3s transition = new pinned revision
     status: candidate
     phases: [S8, S9, S10, S11, S12, S13]
+    k3s_enabled: true                         # S8 boundary introduces k3s (PROFILE-04)
     ubuntu: "24.04"
     ami: ami-03957e4cfe042cca1
     instance_size: t3.large
     module_revision: null
-    bootstrap_sha256: sha256:8c9b26aa327ceb485a27fb00bb13bb585d6f32eb18356ea93590cf64ed48f9bc
-    tools:
+    bootstrap_template: dbai/profiles/operations/cloud-init.yaml.tftpl
+    bootstrap_sha256: sha256:45df3946210e27518ce159059274e7573c266ce710252d3df8031e793d4d70ad
+    tools:                                    # pinned k3s/kubectl/Helm for S8/S9 (uv/docker carried, pins pending)
       ssh: distro
       git: distro
       uv: null
       docker: null
-      k3s: null
-      kubectl: null
-      helm: null
-    verification_evidence: PROFILE-09
+      k3s: v1.30.5+k3s1
+      kubectl: v1.30.5                         # k3s-bundled, symlinked
+      helm: v3.15.4
+    verification_evidence: PROFILE-09          # capacity/boot qualification (S8-S10) stays with PROFILE-09
     student_excluded: "Student manifests/values/auth, monitoring dashboard, MLflow runs, retrieval releases"
 
   # Practical-exam selections reuse the SAME qualified tool versions/repos; they
@@ -90,7 +92,7 @@ profiles:
     status: candidate
     kind: practical
     phases: [S14]
-    selects: [operations-0.1.0]
+    selects: [operations-0.2.0]
     instance_size: t3.large
     module_revision: null
     verification_evidence: PROFILE-10
