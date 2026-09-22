@@ -536,6 +536,105 @@ cmd_diagnose() {
   [ "$ok" = 1 ] && echo "DIAGNOSIS: healthy" || { echo "DIAGNOSIS: FAILED checks above"; return 1; }
 }
 
+# The environment's current public IP (from the connection block, nested).
+connection_ip() {
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("connection",{}).get("public_ip") or "")' \
+    "$(manifest_path "$1")" 2>/dev/null
+}
+
+# Print the replacement VM's SSH host-key fingerprints from the TRUSTED AWS
+# console channel (the instance's own boot log), tied to the current instance
+# id. This is the anchor a student verifies against instead of blindly trusting
+# the network the first time a rebuilt VM answers on the persistent IP
+# (RECOVERY-05, doc-17 §3). Read-only.
+cmd_host_fingerprint() {
+  local env_id="${1:-}"
+  [ -n "$env_id" ] || die "usage: console.sh host-fingerprint <environment-id>"
+  validate_prereqs
+  verify_manifest "$env_id"
+  local iid region ip
+  iid="$(manifest_field "$env_id" instance_id)"
+  region="$(manifest_field "$env_id" aws_region)"
+  ip="$(connection_ip "$env_id")"
+  [ -n "$iid" ] || die "no instance recorded for '${env_id}'; nothing to verify."
+  log "trusted SSH host fingerprints for instance ${iid} (region ${region}, IP ${ip:-unknown}) via the AWS console channel:"
+  local out
+  out="$(aws ec2 get-console-output --instance-id "$iid" --region "$region" --latest --output text 2>/dev/null)"
+  [ -n "$out" ] || die "console output not available yet for ${iid} (can lag a few minutes after boot); retry."
+  local fps
+  fps="$(printf '%s\n' "$out" \
+        | awk '/BEGIN SSH HOST KEY FINGERPRINTS/{f=1;next} /END SSH HOST KEY FINGERPRINTS/{f=0} f' \
+        | sed -E 's/^.*cloud-init: //; s/^ec2: //')"
+  [ -n "$fps" ] || die "no host-key fingerprint block in the console log yet for ${iid}; retry."
+  printf '%s\n' "$fps"
+}
+
+# Verify the replacement host's LIVE key against the trusted console-channel key
+# BEFORE touching known_hosts or reconnecting. A mismatch — or a trusted
+# fingerprint that cannot be obtained — fails nonzero and changes nothing, so a
+# changed host key is never silently accepted (accept-new is not a substitute).
+# Records both fingerprints; never prints private key material and never weakens
+# key-only access (RECOVERY-05 AC#2/#3/#5).
+cmd_verify_host() {
+  local env_id="" khfile="" refresh=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --known-hosts) khfile="${2:-}"; shift 2 ;;
+      --refresh)     refresh=1; shift ;;
+      *) [ -z "$env_id" ] && { env_id="$1"; shift; } || die "unknown argument: $1" ;;
+    esac
+  done
+  [ -n "$env_id" ] || die "usage: console.sh verify-host <id> [--refresh] [--known-hosts <file>]"
+  validate_prereqs
+  verify_manifest "$env_id"
+  local iid region ip
+  iid="$(manifest_field "$env_id" instance_id)"
+  region="$(manifest_field "$env_id" aws_region)"
+  ip="$(connection_ip "$env_id")"
+  [ -n "$iid" ] || die "no instance recorded for '${env_id}'."
+  [ -n "$ip" ]  || die "no public IP recorded for '${env_id}'."
+
+  # (1) trusted keys from the console channel -> trusted fingerprints.
+  local out trusted_keys trusted_fp
+  out="$(aws ec2 get-console-output --instance-id "$iid" --region "$region" --latest --output text 2>/dev/null)"
+  [ -n "$out" ] || die "[reject] trusted channel unavailable: no console output for ${iid} yet; NOT verified."
+  trusted_keys="$(printf '%s\n' "$out" \
+        | awk '/BEGIN SSH HOST KEY KEYS/{f=1;next} /END SSH HOST KEY KEYS/{f=0} f' \
+        | sed -E 's/^.*cloud-init: //; s/^ec2: //' | grep -E '^(ssh-|ecdsa-)')"
+  [ -n "$trusted_keys" ] || die "[reject] no trusted host keys in the console log for ${iid} yet; NOT verified. Retry (do not bypass host checking)."
+  trusted_fp="$(printf '%s\n' "$trusted_keys" | ssh-keygen -lf - 2>/dev/null | awk '{print $2}' | sort -u)"
+
+  # (2) observed keys live from the host.
+  local observed observed_fp
+  observed="$(ssh-keyscan -T 10 "$ip" 2>/dev/null | grep -E ' (ssh|ecdsa)')"
+  [ -n "$observed" ] || die "[reject] ssh-keyscan got no key from ${ip} (host unreachable?); NOT verified."
+  observed_fp="$(printf '%s\n' "$observed" | ssh-keygen -lf - 2>/dev/null | awk '{print $2}' | sort -u)"
+
+  log "trusted fingerprints (console channel, instance ${iid}):"; printf '  %s\n' $trusted_fp >&2
+  log "observed fingerprints (ssh-keyscan ${ip}):";               printf '  %s\n' $observed_fp >&2
+
+  # (3) every observed key MUST appear in the trusted set.
+  local f mismatch=0
+  for f in $observed_fp; do
+    printf '%s\n' "$trusted_fp" | grep -qxF "$f" || { log "MISMATCH: observed ${f} is NOT in the trusted set"; mismatch=1; }
+  done
+  if [ "$mismatch" != 0 ]; then
+    die "[reject] host key does NOT match the trusted console-channel fingerprint; refusing to touch known_hosts or reconnect. Key-only access unchanged."
+  fi
+  log "VERIFIED: the live host key on ${ip} matches the trusted console-channel fingerprint (instance ${iid})."
+
+  # (4) only after verification: refresh known_hosts (remove stale IP, add verified key).
+  if [ "$refresh" = 1 ]; then
+    khfile="${khfile:-$HOME/.ssh/known_hosts}"
+    mkdir -p "$(dirname "$khfile")"; touch "$khfile"
+    ssh-keygen -R "$ip" -f "$khfile" >/dev/null 2>&1 || true
+    printf '%s\n' "$observed" >> "$khfile"
+    log "known_hosts refreshed (${khfile}): obsolete ${ip} entry removed, verified key added. Reconnect with StrictHostKeyChecking=yes."
+  else
+    log "verified only. To trust it: re-run with --refresh, or manually 'ssh-keygen -R ${ip}' then connect once to add the verified key."
+  fi
+}
+
 # Native Terraform plan for the active root, preserving detailed-exitcode
 # (0 = no change, 2 = change, 1 = error) and reusing the persisted inputs.
 cmd_plan() {
@@ -959,6 +1058,8 @@ Controller operations:
       [--deploy-public-key <p>] [--instructor-public-key <p>] [--ssh-private-key <p>] [--region <r>]   Create/reconnect the workspace
   console.sh plan <id>              Native Terraform plan (detailed-exitcode)
   console.sh diagnose <id> [--redacted]  Read-only environment diagnostic
+  console.sh host-fingerprint <id>       Trusted SSH host fingerprints (AWS console channel)
+  console.sh verify-host <id> [--refresh] [--known-hosts <f>]   Verify host key vs trusted channel
   console.sh stop <id>              Stop the VM (preserve disk/EIP; still billable)
   console.sh start <id>             Start the VM
   console.sh workspace-destroy <id> --evidence-synced   Destroy workspace (keep address)
@@ -987,6 +1088,8 @@ main() {
     initialize)      cmd_initialize "$@" ;;
     plan)            cmd_plan "$@" ;;
     diagnose)        cmd_diagnose "$@" ;;
+    host-fingerprint) cmd_host_fingerprint "$@" ;;
+    verify-host)     cmd_verify_host "$@" ;;
     stop)            cmd_stop "$@" ;;
     workspace-destroy) cmd_workspace_destroy "$@" ;;
     rebuild)         cmd_rebuild "$@" ;;
