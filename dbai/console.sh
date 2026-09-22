@@ -648,6 +648,71 @@ cmd_verify_host() {
   fi
 }
 
+# Rehearsed environment recovery triage (RECOVERY-08). Classifies the failure —
+# expired sandbox AWS session, lost/stopped workspace, or a workspace that never
+# became reachable/ready — and prints the specific route plus the retained
+# state/keys it needs. It NEVER resets a repository, rewrites exam-branch history
+# or provisions a clean substitute, and returns nonzero until the environment is
+# healthy so a claimed recovery is never silent (doc-18 §6, §2).
+cmd_recover() {
+  local env_id="" redacted=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --redacted) redacted=1; shift ;;
+      *) [ -z "$env_id" ] && { env_id="$1"; shift; } || die "unknown argument: $1" ;;
+    esac
+  done
+  [ -n "$env_id" ] || die "usage: console.sh recover <environment-id> [--redacted]"
+  verify_manifest "$env_id"
+  local region acct iid; region="$(manifest_field "$env_id" aws_region)"
+  acct="$(manifest_field "$env_id" aws_account)"; iid="$(manifest_field "$env_id" instance_id)"
+  echo "== dbai recovery triage: ${env_id} =="
+  echo "note: recovery preserves committed/backed-up work only; it never resets exam branches, journals or fault evidence."
+
+  # Route 1 — expired/wrong sandbox AWS session (controller-side; no VM needed).
+  local sess
+  if ! sess="$(aws sts get-caller-identity --query Account --output text 2>/dev/null)" || [ "$sess" != "$acct" ]; then
+    echo "FAILURE: sandbox AWS session expired or wrong account (need ${acct}, have ${sess:-none})."
+    echo "ROUTE (session): re-run your sandbox login to refresh temporary credentials, then 'console.sh doctor --region ${region}'."
+    echo "RETAINED: controller state, address state and keys persist on the controller; no repo is reset."
+    echo "recover: NOT healthy (session)."; return 2
+  fi
+  echo "session:      OK (account ${sess})"
+
+  # Route 2 — lost/stopped workspace (instance state via the trusted AWS API).
+  if [ -z "$iid" ]; then
+    echo "FAILURE: no workspace instance recorded for '${env_id}'."
+    echo "ROUTE (build): 'console.sh initialize …'. Only work committed/pushed to your repos (and GHCR) survives a VM that never existed."
+    echo "recover: NOT healthy (no instance)."; return 2
+  fi
+  local st; st="$(instance_state "$env_id")"
+  case "$st" in
+    ""|None|terminated)
+      echo "FAILURE: instance ${iid} is ${st:-gone} (VM lost)."
+      echo "ROUTE (rebuild): sync exam branch / journal / fault evidence to Git/GHCR FIRST, then 'console.sh rebuild ${env_id} --evidence-synced'. The persistent EIP and address state are retained; uncommitted VM content does NOT survive."
+      echo "recover: NOT healthy (VM lost)."; return 2 ;;
+    stopped)
+      echo "FAILURE: instance ${iid} is stopped."
+      echo "ROUTE (start): 'console.sh start ${env_id}' preserves disk/EIP/identity, then 'console.sh verify-host ${env_id}' before reconnecting."
+      echo "recover: NOT healthy (stopped)."; return 2 ;;
+    running) echo "workspace:    OK (instance ${iid} running)" ;;
+    *) echo "workspace:    ${st} (instance ${iid})"; echo "recover: NOT healthy (${st})."; return 2 ;;
+  esac
+
+  # Route 3 — running but unreachable / not yet ready (connectivity or bootstrap).
+  local ip; ip="$(connection_ip "$env_id")"
+  if [ -n "$ip" ] && ! ssh-keyscan -T 8 "$ip" >/dev/null 2>&1; then
+    echo "FAILURE: instance ${iid} running but SSH is unreachable on ${ip} (lost connectivity or a bootstrap that never opened sshd)."
+    echo "ROUTE (connectivity/bootstrap): check the security group and your egress; if the VM was replaced, verify the new host key with 'console.sh verify-host ${env_id}'. If the boot never completed, sync evidence then 'console.sh rebuild ${env_id} --evidence-synced'. Do not disable host checking."
+    echo "recover: NOT healthy (unreachable)."; return 2
+  fi
+  [ -n "$ip" ] && echo "connectivity: OK (ssh port open on ${ip})"
+  echo "-- recovery triage --"
+  echo "recover: environment appears HEALTHY. After any replacement run 'console.sh verify-host ${env_id}' before reconnecting (RECONNECT.md). If you still cannot work, capture 'console.sh diagnose ${env_id} --redacted' for the professor and hand off to assessment preflight."
+  [ "$redacted" = 1 ] && return 0
+  return 0
+}
+
 # Native Terraform plan for the active root, preserving detailed-exitcode
 # (0 = no change, 2 = change, 1 = error) and reusing the persisted inputs.
 cmd_plan() {
@@ -1166,6 +1231,7 @@ Controller operations:
   console.sh diagnose <id> [--redacted]  Read-only environment diagnostic
   console.sh host-fingerprint <id>       Trusted SSH host fingerprints (AWS console channel)
   console.sh verify-host <id> [--refresh] [--known-hosts <f>]   Verify host key vs trusted channel
+  console.sh recover <id> [--redacted]     Recovery triage: session/connectivity/bootstrap routes
   console.sh stop <id>              Stop the VM (preserve disk/EIP; still billable)
   console.sh start <id>             Start the VM
   console.sh workspace-destroy <id> --evidence-synced   Destroy workspace (keep address)
@@ -1197,6 +1263,7 @@ main() {
     diagnose)        cmd_diagnose "$@" ;;
     host-fingerprint) cmd_host_fingerprint "$@" ;;
     verify-host)     cmd_verify_host "$@" ;;
+    recover)         cmd_recover "$@" ;;
     stop)            cmd_stop "$@" ;;
     workspace-destroy) cmd_workspace_destroy "$@" ;;
     rebuild)         cmd_rebuild "$@" ;;
