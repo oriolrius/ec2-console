@@ -6,19 +6,26 @@ through implicit upgrades. The catalog is [`catalog.yaml`](./catalog.yaml),
 validated by [`validate-profiles.py`](./validate-profiles.py).
 
 Profiles are **frozen before teaching/exams**. A changed tool/module/bootstrap
-input requires a **new profile version** — never edit a published one. All
-entries are currently `candidate`; capacity and boot-time qualification happen
-in PROFILE-05/06/08/09/10/11.
+input requires a **new profile version** — never edit a published one. Capacity
+and boot-time qualification happen in PROFILE-05/06/08/09/10/11; `foundations`
+and `containers` are **qualified live** (see their `QUALIFICATION.md`), the
+others remain pending.
 
 ## Catalog
 
-| Profile | Phases | Instance | Adds over previous | Verified by |
+| Profile | Phases | Instance | Adds over previous | Qualified by |
 |---|---|---|---|---|
-| `foundations-0.1.0` | S2–S3 | t3.small | SSH, git, uv, remote-editor, minimal shell | PROFILE-05 |
-| `containers-0.1.0` | S4–S7 | t3.medium | Docker / Compose | PROFILE-08 |
-| `operations-0.1.0` | S8–S13 | t3.large | k3s, kubectl, Helm | PROFILE-09 |
-| `exam-s7-practical-0.1.0` | S7 | t3.medium | *(none — reuses foundations+containers pins)* | PROFILE-06 |
+| `foundations-0.1.0` | S2–S3 | t3.small | SSH, git, uv, remote-editor, minimal shell | PROFILE-05 ✅ [evidence](./foundations/QUALIFICATION.md) |
+| `containers-0.1.0` | S4–S7 | t3.medium | Docker / Compose | PROFILE-08 ✅ [evidence](./containers/QUALIFICATION.md) |
+| `operations-0.2.0` | S8–S13 | t3.large | **k3s + kubectl + Helm** (S8 transition, PROFILE-04) — [runbook](./operations/RUNBOOK.md) | PROFILE-09 (capacity pending) |
+| `exam-s7-practical-0.1.0` | S7 | t3.medium | *(none — reuses foundations+containers pins)* | PROFILE-06 — [preflight](../exam-preflight.sh) |
 | `exam-s14-practical-0.1.0` | S14 | t3.large | *(none — reuses operations pins)* | PROFILE-10 |
+
+**Remote development onboarding** (SSH + VS Code Remote SSH, execution-context
+labels): [`foundations/REMOTE_DEV.md`](./foundations/REMOTE_DEV.md) (PROFILE-07).
+The **S8 Kubernetes transition** (one planned replacement, populated-node
+protection, S9 plan→revert) is [`operations/RUNBOOK.md`](./operations/RUNBOOK.md)
+(PROFILE-04).
 
 Each profile records the Ubuntu/AMI, tool pins, `ec2_console_version`,
 `module_revision` (pending RECOVERY-01), `bootstrap_sha256`, `instance_size` and

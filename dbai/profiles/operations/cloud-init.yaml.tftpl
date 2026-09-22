@@ -1,0 +1,50 @@
+#cloud-config
+# Operations profile bootstrap (PROFILE-04, doc-18 §4/§5) — the S8+ VM. Ubuntu
+# 24.04 on t3.large. This is the S8 transition: it adds a single-node **k3s**
+# cluster with a **pinned** kubectl and **pinned** Helm ON TOP of the containers
+# tools (git, uv, Docker already present from earlier phases). It deliberately
+# does NOT ship student manifests, values/auth, a monitoring dashboard, MLflow
+# runs or retrieval releases — only the tool/platform scaffolding for S8/S9.
+#
+# Rendered with the enrolled PUBLIC keys; byte-identical across the controller
+# and student roots. Idempotent: reapplying converges. Because k3s/Helm are
+# pinned, an S6-style rebuild from this same bootstrap recreates the SAME
+# platform version — teaching/exam behavior cannot drift on a silent upgrade.
+package_update: true
+packages:
+  - git
+  - curl
+  - ca-certificates
+  - unzip
+  - docker.io
+  - docker-compose-v2
+%{ if length(authorized_keys) > 0 ~}
+ssh_authorized_keys:
+%{ for key in authorized_keys ~}
+  - ${key}
+%{ endfor ~}
+%{ endif ~}
+write_files:
+  # Non-sudo kubeconfig for the student: k3s writes a world-readable kubeconfig
+  # (mode 644 below) and every login gets KUBECONFIG pointed at it, so `kubectl`
+  # works WITHOUT sudo for the S8 "hello-world on your own cluster" lab.
+  - path: /etc/profile.d/dbai-kubeconfig.sh
+    permissions: "0644"
+    content: |
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+runcmd:
+  # uv carried over from foundations/containers — pinned installer, once.
+  - [ cloud-init-per, once, dbai-uv, sh, -c, "curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh" ]
+  - [ cloud-init-per, once, dbai-docker-enable, systemctl, enable, --now, docker ]
+  - [ cloud-init-per, once, dbai-docker-group, usermod, -aG, docker, ubuntu ]
+  # k3s PINNED to a specific version; --write-kubeconfig-mode 644 makes the
+  # kubeconfig readable by the student login (non-sudo kubectl). The k3s
+  # installer verifies its own binary hash before installing.
+  - [ cloud-init-per, once, dbai-k3s, sh, -c, "curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.30.5+k3s1 INSTALL_K3S_EXEC='--write-kubeconfig-mode 644' sh -" ]
+  # Pinned standalone kubectl symlink to the k3s-bundled binary (same version as
+  # the cluster; S9 inspection uses `kubectl` directly).
+  - [ cloud-init-per, once, dbai-kubectl, sh, -c, "ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl" ]
+  # Helm PINNED to v3.15.4 (verified against its published sha256) for S9.
+  - [ cloud-init-per, once, dbai-helm, sh, -c, "cd /tmp && curl -fsSLO https://get.helm.sh/helm-v3.15.4-linux-amd64.tar.gz && echo '11400fecfc07fd6f034863e4e0c4c4445594673fd2a129e701fe41f31170cfa9  helm-v3.15.4-linux-amd64.tar.gz' | sha256sum -c - && tar xzf helm-v3.15.4-linux-amd64.tar.gz && install -m0755 linux-amd64/helm /usr/local/bin/helm" ]
+  # Record the platform pins so the profile in use is auditable on the VM.
+  - [ cloud-init-per, once, dbai-marker, sh, -c, "echo operations > /etc/dbai-profile && echo dbai-workspace-bootstrap > /etc/dbai-bootstrap && printf 'k3s=v1.30.5+k3s1\\nhelm=v3.15.4\\nkubectl=v1.30.5(k3s-bundled)\\n' > /etc/dbai-platform-pins" ]
