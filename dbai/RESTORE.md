@@ -170,8 +170,8 @@ ssh dbai@<id> '
 ```
 
 Open the S4 loopback tunnel and prove the gateway answers with the student key —
-the same round trip qualified in WB-05 (`claude-haiku-free` returned a real
-completion):
+the same round trip qualified in WB-05, now on the nan.builders course chat alias
+`course-chat` (the legacy name `claude-haiku-free` is key-aliased to it):
 
 ```bash
 ssh -N -L 8080:127.0.0.1:8080 dbai@<id> &     # S4 tunnel to pi-web-ui
@@ -179,7 +179,7 @@ curl -s http://localhost:8080/health          # workbench UI reachable over the 
 # gateway round trip with the restored key (never printed):
 curl -s https://litellm.joor.net/v1/chat/completions \
   -H "Authorization: Bearer $COURSE_VIRTUAL_KEY" \
-  -d '{"model":"claude-haiku-free","messages":[{"role":"user","content":"WB recovery ping"}]}' \
+  -d '{"model":"course-chat","messages":[{"role":"user","content":"WB recovery ping"}]}' \
   | jq -r '.choices[0].message.content'        # a real completion == AC#5 evidence
 ```
 
