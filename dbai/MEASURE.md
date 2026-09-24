@@ -30,7 +30,7 @@ echo "recovery wall-clock: $(( (T1 - T0) / 60 ))m $(( (T1 - T0) % 60 ))s"
   1. the **pipeline-deployed** hello-world release answers with its new version
      (`curl / | jq .message,.hostname`), and
   2. the **authenticated workbench chat** returns a real completion through the
-     S4 tunnel (`claude-haiku-free`, restored `COURSE_VIRTUAL_KEY`).
+     S4 tunnel (`course-chat`, nan.builders; restored `COURSE_VIRTUAL_KEY`).
 - **A failed/interrupted run is recorded as `FAILED`/`INCOMPLETE`** with the
   elapsed time so far — never as a passed recovery with preparation time omitted
   (AC#6). If the timer stopped before both proofs passed, the run did not pass.
@@ -52,7 +52,7 @@ output. The record must be sufficient for a reader to **repeat the proof** (AC#7
 | 6 | GHCR login | `docker login ghcr.io` succeeds (effect only; no PAT) |
 | 7 | Release completion | release.yml run URL/tag; `curl /` shows the **new** version on the new hostname |
 | 8 | Workbench `.env` restored | `.env` recreated from the secret store (never Git); `docker compose ps` healthy |
-| 9 | Gateway chat | `claude-haiku-free` completion over the S4 tunnel (redacted body) |
+| 9 | Gateway chat | `course-chat` completion over the S4 tunnel (redacted body) |
 
 ### Retained-identity proof (AC#3)
 
