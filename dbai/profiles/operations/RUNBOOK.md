@@ -109,3 +109,15 @@ Secrets/PVCs and evidence, and never reset a populated node. Full exam rehearsal
 and cleanup timing belong to the assessment package (M11). This profile ships
 only the platform — student manifests, values/auth, dashboards, MLflow runs and
 retrieval releases are the students' own later work.
+
+## Capacity (PROFILE-09) and stop discipline
+
+Measured on `t3.large` with S8+S9+S10 running together plus a VS Code remote session
+(see [QUALIFICATION.md](./QUALIFICATION.md)): boot 62 s, node Ready 65 s after launch, ≥ 58 %
+RAM free even under the LOAD FEST with Pylance active, 11 % CPU when idle, disk 58 % free (but
+the PVC capacity leaves only a thin margin: see the operations-0.3.0 30 GB proposal).
+
+- `dbai/console.sh stop <env-id>` when not working: compute and CPU-surplus charges stop.
+- A stopped VM still pays for its 25 GB disk (~$2.20/month) and its public IPv4 (~$3.65/month).
+- `final-cleanup <env-id> --confirm` removes everything at course end.
+- An AWS Budget alert only **notifies**. It does not stop or cap anything.
