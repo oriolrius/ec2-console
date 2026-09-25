@@ -126,7 +126,7 @@ the PVC capacity leaves only a thin margin: see the operations-0.3.0 30 GB propo
 
 Measured on t3.large with the full S11–S12 peak (`QUALIFICATION-S11-S12.md`). Everything fits in
 RAM and CPU (≥ 28 % RAM available at peak, idle CPU 11 %). The **25 GB disk does not qualify**: worst-case
-PVC growth reaches 93.1 % against a 90 % limit. Until a measured `operations-0.3.0` (30 GB) exists,
-check `df -h /` before S11 (≥ 5 GB free) and watch the Prometheus PVC. Stop the VM after every lab
+PVC growth reaches 93.1 % against a 90 % limit. `operations-0.3.0` (30 GB, own-EIP port 80) is measured and PASSES (worst case 77.1 %). Use it
+for S8+ environments; still check `df -h /` before S11 (≥ 5 GB free). Stop the VM after every lab
 and homework session (`console.sh stop <id>`). Compute stops; disk and public IPv4 keep billing. AWS
 Budget alerts notify only.
