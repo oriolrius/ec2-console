@@ -150,6 +150,24 @@ acquire_lock() {
 }
 release_lock() { [ -n "$LOCK_DIR" ] && rm -rf "$LOCK_DIR" 2>/dev/null; LOCK_DIR=""; }
 
+# Profile-driven module inputs (operations-0.3.0). Passed ONLY when they differ from the module
+# defaults (25 GB, no own-EIP port-80 rule): an adopted S6 student root vendored before these
+# inputs existed does not declare them, and Terraform rejects an undeclared -var.
+PROFILE_TF_VARS=()
+profile_tf_vars() {
+  local rootgb="${1:-25}" webself="${2:-false}"
+  PROFILE_TF_VARS=()
+  [ "$rootgb" != "25" ] && PROFILE_TF_VARS+=(-var "root_volume_gb=${rootgb}")
+  [ "$webself" = "true" ] && PROFILE_TF_VARS+=(-var "web_ingress_self=true")
+  return 0
+}
+persisted_profile_tf_vars() {
+  local env_id="$1" r w
+  r="$(input_field "$env_id" root_volume_gb)"
+  w="$(input_field "$env_id" web_ingress_self | tr 'A-Z' 'a-z')"
+  profile_tf_vars "${r:-25}" "${w:-false}"
+}
+
 # Read one field of a named profile from the catalog (empty if absent).
 profile_field() {
   local name="$1" field="$2"
@@ -442,8 +460,8 @@ cmd_initialize() {
   local args=(-input=false -auto-approve
     -var "student_id=${env_id}" -var "aws_region=${region}"
     -var "ssh_public_key_path=${sshkey}" -var "eip_allocation_id=${alloc}"
-    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot_abs}"
-    -var "root_volume_gb=${rootgb}" -var "web_ingress_self=${webself}")
+    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot_abs}")
+  profile_tf_vars "$rootgb" "$webself"; args+=(${PROFILE_TF_VARS[@]+"${PROFILE_TF_VARS[@]}"})
   [ -n "$deploykey" ] && args+=(-var "deploy_public_key_path=${deploykey}")
   [ -n "$instrkey" ]  && args+=(-var "instructor_public_key_path=${instrkey}")
   terraform -chdir="$WORKSPACE_ROOT" apply "${args[@]}" >&2
@@ -750,9 +768,8 @@ cmd_plan() {
   local args=(-input=false -detailed-exitcode
     -var "student_id=${env_id}" -var "aws_region=${region}"
     -var "ssh_public_key_path=${sshkey}" -var "eip_allocation_id=${alloc}"
-    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot}"
-    -var "root_volume_gb=$(input_field "$env_id" root_volume_gb | sed 's/^$/25/')"
-    -var "web_ingress_self=$(input_field "$env_id" web_ingress_self | sed 's/^$/false/;s/True/true/;s/False/false/')")
+    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot}")
+  persisted_profile_tf_vars "$env_id"; args+=(${PROFILE_TF_VARS[@]+"${PROFILE_TF_VARS[@]}"})
   [ -n "$deploykey" ] && args+=(-var "deploy_public_key_path=${deploykey}")
   [ -n "$instrkey" ]  && args+=(-var "instructor_public_key_path=${instrkey}")
 
@@ -908,9 +925,8 @@ _workspace_var_args() {
   instrkey="$(input_field "$env_id" instructor_public_key_path)"
   WS_ARGS=(-var "student_id=${env_id}" -var "aws_region=${region}"
     -var "ssh_public_key_path=${sshkey}" -var "eip_allocation_id=${alloc}"
-    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot}"
-    -var "root_volume_gb=$(input_field "$env_id" root_volume_gb | sed 's/^$/25/')"
-    -var "web_ingress_self=$(input_field "$env_id" web_ingress_self | sed 's/^$/false/;s/True/true/;s/False/false/')")
+    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot}")
+  persisted_profile_tf_vars "$env_id"; WS_ARGS+=(${PROFILE_TF_VARS[@]+"${PROFILE_TF_VARS[@]}"})
   [ -n "$deploykey" ] && WS_ARGS+=(-var "deploy_public_key_path=${deploykey}")
   [ -n "$instrkey" ]  && WS_ARGS+=(-var "instructor_public_key_path=${instrkey}")
   return 0
