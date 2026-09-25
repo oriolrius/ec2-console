@@ -121,3 +121,12 @@ the PVC capacity leaves only a thin margin: see the operations-0.3.0 30 GB propo
 - A stopped VM still pays for its 25 GB disk (~$2.20/month) and its public IPv4 (~$3.65/month).
 - `final-cleanup <env-id> --confirm` removes everything at course end.
 - An AWS Budget alert only **notifies**. It does not stop or cap anything.
+
+## S11–S12 capacity and stop discipline (PROFILE-11)
+
+Measured on t3.large with the full S11–S12 peak (`QUALIFICATION-S11-S12.md`). Everything fits in
+RAM and CPU (≥ 28 % RAM available at peak, idle CPU 11 %). The **25 GB disk does not qualify**: worst-case
+PVC growth reaches 93.1 % against a 90 % limit. Until a measured `operations-0.3.0` (30 GB) exists,
+check `df -h /` before S11 (≥ 5 GB free) and watch the Prometheus PVC. Stop the VM after every lab
+and homework session (`console.sh stop <id>`). Compute stops; disk and public IPv4 keep billing. AWS
+Budget alerts notify only.
