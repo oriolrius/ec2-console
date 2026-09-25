@@ -157,10 +157,17 @@ profile_field() {
 import os, yaml
 try:
     cat = yaml.safe_load(open(os.environ["CATALOG"]))
-    for p in cat.get("profiles", []):
-        if p.get("name") == os.environ["NAME"]:
-            v = p.get(os.environ["FIELD"])
-            print("" if v is None else v); break
+    profs = cat.get("profiles", [])
+    want = os.environ["NAME"]
+    # An exact version (e.g. operations-0.2.0) wins; a bare name resolves to its
+    # current entry (the one not marked superseded).
+    hit = next((p for p in profs if p.get("version") == want), None) or \
+          next((p for p in profs if p.get("name") == want and p.get("status") != "superseded"), None)
+    if hit is not None:
+        v = hit.get(os.environ["FIELD"])
+        if isinstance(v, bool):
+            v = "true" if v else "false"
+        print("" if v is None else v)
 except Exception:
     pass
 PY
@@ -418,6 +425,9 @@ cmd_initialize() {
   boot_abs="${SCRIPT_DIR}/../${boot}"
   [ -f "$boot_abs" ] || die "profile bootstrap template not found: ${boot_abs}"
   pver="$(profile_field "$profile" version)"
+  local rootgb webself
+  rootgb="$(profile_field "$profile" root_volume_gb)"; rootgb="${rootgb:-25}"
+  webself="$(profile_field "$profile" web_ingress_self)"; webself="${webself:-false}"
 
   local alloc; alloc="$(manifest_field "$env_id" eip_allocation_id)"
   [ -n "$alloc" ] || die "no EIP allocated for '${env_id}'; run init-address first."
@@ -432,7 +442,8 @@ cmd_initialize() {
   local args=(-input=false -auto-approve
     -var "student_id=${env_id}" -var "aws_region=${region}"
     -var "ssh_public_key_path=${sshkey}" -var "eip_allocation_id=${alloc}"
-    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot_abs}")
+    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot_abs}"
+    -var "root_volume_gb=${rootgb}" -var "web_ingress_self=${webself}")
   [ -n "$deploykey" ] && args+=(-var "deploy_public_key_path=${deploykey}")
   [ -n "$instrkey" ]  && args+=(-var "instructor_public_key_path=${instrkey}")
   terraform -chdir="$WORKSPACE_ROOT" apply "${args[@]}" >&2
@@ -446,11 +457,11 @@ cmd_initialize() {
   bhash="sha256:$(sha256sum "$boot_abs" | cut -d' ' -f1)"
 
   # Persist resource ids + the non-secret inputs needed to plan/apply again.
-  merge_manifest "$env_id" "$(printf '{"instance_id":"%s","module_revision":"%s","profile_version":"%s","bootstrap_template_sha256":"%s","connection":{"public_ip":"%s","ssh":"ssh ubuntu@%s"},"inputs":{"profile":"%s","ssh_public_key_path":"%s","deploy_public_key_path":%s,"instructor_public_key_path":%s,"instance_type":"%s","bootstrap_template_path":"%s","region":"%s"}}' \
+  merge_manifest "$env_id" "$(printf '{"instance_id":"%s","module_revision":"%s","profile_version":"%s","bootstrap_template_sha256":"%s","connection":{"public_ip":"%s","ssh":"ssh ubuntu@%s"},"inputs":{"profile":"%s","ssh_public_key_path":"%s","deploy_public_key_path":%s,"instructor_public_key_path":%s,"instance_type":"%s","bootstrap_template_path":"%s","region":"%s","root_volume_gb":%s,"web_ingress_self":%s}}' \
     "$iid" "$rev" "$pver" "$bhash" "$ip" "$ip" "$profile" "$sshkey" \
     "$([ -n "$deploykey" ] && printf '"%s"' "$deploykey" || echo null)" \
     "$([ -n "$instrkey" ] && printf '"%s"' "$instrkey" || echo null)" \
-    "$inst" "$boot_abs" "$region")"
+    "$inst" "$boot_abs" "$region" "$rootgb" "$webself")"
 
   # Readiness (ENV-07): boot readiness first; connection is reported ONLY after
   # it passes. A failure here is NOT labelled ready and propagates nonzero.
@@ -739,7 +750,9 @@ cmd_plan() {
   local args=(-input=false -detailed-exitcode
     -var "student_id=${env_id}" -var "aws_region=${region}"
     -var "ssh_public_key_path=${sshkey}" -var "eip_allocation_id=${alloc}"
-    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot}")
+    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot}"
+    -var "root_volume_gb=$(input_field "$env_id" root_volume_gb | sed 's/^$/25/')"
+    -var "web_ingress_self=$(input_field "$env_id" web_ingress_self | sed 's/^$/false/;s/True/true/;s/False/false/')")
   [ -n "$deploykey" ] && args+=(-var "deploy_public_key_path=${deploykey}")
   [ -n "$instrkey" ]  && args+=(-var "instructor_public_key_path=${instrkey}")
 
@@ -895,7 +908,9 @@ _workspace_var_args() {
   instrkey="$(input_field "$env_id" instructor_public_key_path)"
   WS_ARGS=(-var "student_id=${env_id}" -var "aws_region=${region}"
     -var "ssh_public_key_path=${sshkey}" -var "eip_allocation_id=${alloc}"
-    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot}")
+    -var "instance_type=${inst}" -var "bootstrap_template_path=${boot}"
+    -var "root_volume_gb=$(input_field "$env_id" root_volume_gb | sed 's/^$/25/')"
+    -var "web_ingress_self=$(input_field "$env_id" web_ingress_self | sed 's/^$/false/;s/True/true/;s/False/false/')")
   [ -n "$deploykey" ] && WS_ARGS+=(-var "deploy_public_key_path=${deploykey}")
   [ -n "$instrkey" ]  && WS_ARGS+=(-var "instructor_public_key_path=${instrkey}")
   return 0

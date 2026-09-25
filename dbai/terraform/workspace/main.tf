@@ -29,6 +29,9 @@ module "workspace" {
   bootstrap_template_path    = coalesce(var.bootstrap_template_path, "${path.root}/templates/bootstrap.cloudinit.yaml.tftpl")
   instance_type              = var.instance_type
   app_ingress_cidrs          = var.app_ingress_cidrs
+  root_volume_gb             = var.root_volume_gb
+  web_ingress_cidrs          = var.web_ingress_cidrs
+  web_ingress_self           = var.web_ingress_self
   cost_tags                  = var.cost_tags
 }
 
@@ -103,4 +106,22 @@ output "public_ip" {
 output "instance_id" {
   description = "Workspace VM instance id."
   value       = module.workspace.instance_id
+}
+
+variable "root_volume_gb" {
+  description = "Root volume size in GB (profile-driven; 25 before operations-0.3.0)."
+  type        = number
+  default     = 25
+}
+
+variable "web_ingress_cidrs" {
+  description = "Explicit CIDRs allowed on TCP 80 (S9 ingress)."
+  type        = list(string)
+  default     = []
+}
+
+variable "web_ingress_self" {
+  description = "Allow TCP 80 from the VM's own EIP (hairpin for in-cluster probes)."
+  type        = bool
+  default     = false
 }
