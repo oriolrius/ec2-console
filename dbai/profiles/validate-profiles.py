@@ -63,8 +63,8 @@ def validate(cat: dict) -> list[str]:
         else:
             versions.add(str(ver))
 
-        if p.get("status") not in ("candidate", "qualified"):
-            errs.append(f"{tag}: status must be candidate|qualified")
+        if p.get("status") not in ("candidate", "qualified", "superseded"):
+            errs.append(f"{tag}: status must be candidate|qualified|superseded")
         if not p.get("instance_size"):
             errs.append(f"{tag}: missing instance_size")
         for ph in p.get("phases", []) or []:

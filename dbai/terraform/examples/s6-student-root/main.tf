@@ -43,6 +43,9 @@ module "workspace" {
   bootstrap_template_path    = var.bootstrap_template_path
   instance_type              = var.instance_type
   app_ingress_cidrs          = var.app_ingress_cidrs
+  root_volume_gb             = var.root_volume_gb
+  web_ingress_cidrs          = var.web_ingress_cidrs
+  web_ingress_self           = var.web_ingress_self
   cost_tags                  = var.cost_tags
 }
 
@@ -99,4 +102,22 @@ output "instance_id" { value = module.workspace.instance_id }
 output "ssh_command" {
   description = "Ready-to-run SSH command for the workspace (outputs-only; no resource change)."
   value       = "ssh -i <your-dbai.pem> ubuntu@${module.workspace.public_ip}"
+}
+
+variable "root_volume_gb" {
+  description = "Root volume size in GB (profile-driven; 25 before operations-0.3.0)."
+  type        = number
+  default     = 25
+}
+
+variable "web_ingress_cidrs" {
+  description = "Explicit CIDRs allowed on TCP 80 (S9 ingress)."
+  type        = list(string)
+  default     = []
+}
+
+variable "web_ingress_self" {
+  description = "Allow TCP 80 from the VM's own EIP (hairpin for in-cluster probes)."
+  type        = bool
+  default     = false
 }

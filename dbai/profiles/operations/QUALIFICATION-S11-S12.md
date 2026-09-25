@@ -1,5 +1,8 @@
 # Operations profile — S11–S12 peak capacity qualification (PROFILE-11)
 
+> **Current result: `operations-0.3.0` PASSES all limits** (re-measured 2026-09-25, section at the end).
+> `operations-0.2.0` (25 GB) below stays NOT QUALIFIED for S11–S12 (L8).
+
 Qualifies the retained **`operations`** profile (`operations-0.2.0`, `t3.large`, 25 GB gp3) for the
 **S11–S12 peak**. That is everything a student runs on the one VM by S12, at the same time:
 
@@ -120,3 +123,38 @@ Rates are those of PROFILE-09 (eu-west-1 list prices, 2026-09-24):
 S11/S12 have **no week-long uptime exception**. Run `console.sh stop <id>` after every lab and
 homework session; MLflow data and PVCs persist on the disk. **An AWS Budget alert only notifies. It
 never stops or caps anything.**
+
+## Re-measurement — `operations-0.3.0` (30 GB + own-EIP port 80) — **PASS** ✅
+
+User decision 2026-09-25: adopt the 30 GB correction. `operations-0.3.0` = `operations-0.2.0` with
+`root_volume_gb: 30` and `web_ingress_self: true` (TCP 80 from the VM's own EIP /32, the S10 probe
+hairpin). Module inputs `root_volume_gb`, `web_ingress_cidrs` and `web_ingress_self` default to the
+earlier resources. The same limits L1–L10 and the same peak scenario were used. Evidence:
+esade-devops `evidence/operations-0.3.0/`.
+
+- Fresh instance `i-029678f6dbdb2ccd7`, launched 2026-09-25T16:46:32Z; manifest `profile_version operations-0.3.0`, `module_revision 5ac0fe7`, `inputs.root_volume_gb 30`, `inputs.web_ingress_self true`.
+- AWS: root volume **30 GB gp3**. SG ingress: 22/0.0.0.0/0 and **80 from 54.220.175.81/32 only** (its own EIP). Port 80 from the operator workstation: blocked.
+
+| # | Metric | Measured | Limit | Verdict |
+|---|---|---|---|---|
+| L1 | Cold boot | 58.6 s | ≤ 120 s | ✅ |
+| L2 | cloud-init | 45.6 s | ≤ 180 s | ✅ |
+| L3 | Launch → Ready | 63 s (16:46:32Z → 16:47:35Z) | ≤ 240 s | ✅ |
+| L4 | RAM available at the peak | 2295 MB (**29.4 %**) | ≥ 20 % | ✅ |
+| L5 | Idle node CPU, 5-min avg (editor open, MLflow up) | **12.2 %** | ≤ 30 % | ✅ |
+| L6 | Peak stability | 0 OOM/evicted/restarts; probe **1** in 30/30 samples (with only the profile's own-EIP rule); release `b1fba30` ingest 165 → eval 10/10 → deploy + smoke OK; 6/6 agent probes answered with search_docs; MLflow 3 runs + v3 + gate OK; UI 5000/5000 | as stated | ✅ |
+| L7 | Root disk free, everything deployed | **61.5 %** of 28691 MB | ≥ 30 % | ✅ |
+| L8 | Worst-case PVC growth | 11017 used + 11097 unfilled = **77.1 %** | ≤ 90 % | ✅ |
+| L9 | Health check | the fresh-VM check was not captured on this VM; its bootstrap is byte-identical to the p11 run (PASS). After student deployment the check reports FAIL by design ("student manifests … baked in"); every other section passed | PASS | ✅ (via p11) |
+| L10 | S11 timings | `uv sync` 4 s; dataset ~15 s; runs 6.6–7.3 s at setup and 29–50 s at the peak | ≤ 120 / 60 / 60 s | ✅ |
+
+**Compatibility (live).**
+- An environment created by the previous code (`main` 6ac7c43, `zc02`, foundations) plans **zero changes** with the new `console.sh` and with the re-vendored student root (`ai-workbench` starter v1.3.0, defaults).
+- The new `operations-0.3.0` environment plans zero changes with `console.sh plan` and with the student root carrying `root_volume_gb = 30` and `web_ingress_self = true`.
+- Omitting `web_ingress_self` shows `1 to change` (the port-80 rule would be removed). So the tfvars values are required, and they are documented in the starter.
+
+**Finding (pre-existing, not changed here).** The S8+ student `infra/cloud-init.yaml` rendered with
+`k3s_enabled = true` is not byte-identical to the controller's `operations/cloud-init.yaml.tftpl`:
+the header comments differ, and the controller template's non-sudo kubeconfig `write_files` block is
+missing. Adoption tests of controller-created operations VMs must therefore render the controller
+template (the path `console.sh` passes). Reconciling the two files is left to the environment owners.

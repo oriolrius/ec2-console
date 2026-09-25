@@ -52,9 +52,36 @@ profiles:
     verification_evidence: PROFILE-08
     student_excluded: "Student Dockerfile/Compose work, release workflow, S6 edits and recovery evidence"
 
+  # operations-0.3.0 (PROFILE-11 correction): same bootstrap/tools as 0.2.0, root volume
+  # 25 -> 30 GB (0.2.0 fails the S11-S12 worst-case PVC limit, 93.1 %) and TCP 80 from
+  # the VM's own EIP so in-cluster probes of wb.<EIP>.sslip.io work (S10 hairpin).
+  - name: operations
+    version: operations-0.3.0
+    status: candidate
+    phases: [S8, S9, S10, S11, S12, S13]
+    k3s_enabled: true
+    ubuntu: "24.04"
+    ami: ami-03957e4cfe042cca1
+    instance_size: t3.large
+    root_volume_gb: 30
+    web_ingress_self: true
+    module_revision: null
+    bootstrap_template: dbai/profiles/operations/cloud-init.yaml.tftpl
+    bootstrap_sha256: sha256:45df3946210e27518ce159059274e7573c266ce710252d3df8031e793d4d70ad
+    tools:
+      ssh: distro
+      git: distro
+      uv: null
+      docker: null
+      k3s: v1.30.5+k3s1
+      kubectl: v1.30.5
+      helm: v3.15.4
+    verification_evidence: PROFILE-11            # S11-S12 peak re-measured on 30 GB (QUALIFICATION-S11-S12.md)
+    student_excluded: "Student manifests/values/auth, monitoring dashboard, MLflow runs, retrieval releases"
+
   - name: operations
     version: operations-0.2.0                 # PROFILE-04: S8 k3s transition = new pinned revision
-    status: candidate
+    status: superseded                        # by operations-0.3.0; still resolvable by exact version
     phases: [S8, S9, S10, S11, S12, S13]
     k3s_enabled: true                         # S8 boundary introduces k3s (PROFILE-04)
     ubuntu: "24.04"
@@ -92,7 +119,7 @@ profiles:
     status: candidate
     kind: practical
     phases: [S14]
-    selects: [operations-0.2.0]
+    selects: [operations-0.3.0]
     instance_size: t3.large
     module_revision: null
     verification_evidence: PROFILE-10
