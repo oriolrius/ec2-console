@@ -2,9 +2,9 @@
 
 A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2 instance with a full graphical desktop, modern terminal tooling, and VS Code -- accessible via SSH, Chrome Remote Desktop, or a browser.
 
-**Infrastructure** is defined in CloudFormation (one command to create, one to destroy). **Provisioning** is handled by an idempotent Ansible playbook with modular, tagged task files.
+**Infrastructure** is defined in CloudFormation or, equivalently, Terraform (one command to create, one to destroy). **Provisioning** is handled by an idempotent Ansible playbook with modular, tagged task files.
 
-> **DBAI course users:** there is a separate, Terraform-based course path under [`dbai/`](dbai/README.md) (controller CLI, phase profiles, per-student state). It does not affect this CloudFormation + Ansible route, which is unchanged.
+> **DBAI course users:** there is a separate, Terraform-based course path under [`dbai/`](dbai/README.md) (controller CLI, phase profiles, per-student state). It is unrelated to [`terraform/`](terraform/main.tf), which is the plain Terraform equivalent of `cloudformation.yaml` used with this Ansible playbook.
 
 [![Watch the demo](docs/demo-thumbnail.jpg)](https://youtu.be/hT7XWxzp-n0)
 > **[Watch the full demo on YouTube](https://youtu.be/hT7XWxzp-n0)** -- deployment, provisioning, and usage walkthrough (click the image above)
@@ -141,8 +141,8 @@ ssh -i ec2-key.pem ubuntu@<public-ip>
 
 1. SSH into the instance
 2. On your local browser, go to https://remotedesktop.google.com/headless
-3. Click **Set up via SSH** > **Begin** > **Next** > **Authorize**
-4. Select **Debian Linux**, copy the `DISPLAY= /opt/google/chrome-remote-desktop/start-host ...` command
+3. Click **Begin** > **Next** > **Authorize**
+4. In the **Debian Linux** section, copy the `DISPLAY= /opt/google/chrome-remote-desktop/start-host ...` command
 5. Paste and run on the SSH session, set a 6-digit PIN when prompted
 6. **Reboot the instance** -- this is required for CRD to start cleanly:
    ```bash
@@ -217,12 +217,15 @@ Host ec2-console
 
 When the EC2 IP changes after a new deployment, update the `HostName` line in your SSH config. Everything else stays the same.
 
-### Recommended VS Code extensions (installed on remote)
+### VS Code extensions (installed on the instance)
 
-- **Python** -- language support, linting, debugging
-- **Jupyter** -- notebook editing and kernel management
-- **Docker** -- container management from the sidebar
-- **Remote - SSH** -- already needed for the connection
+From `files/vscode/extensions.txt`:
+
+- **Python**, **Pylance**, **Python Environments**, **Python Debugger** -- language support, linting, debugging
+- **Jupyter** (with keymap, renderers, cell tags, slideshow) -- notebook editing and kernel management
+- **uv-toolkit** -- UV project support
+
+**Remote - SSH** is installed on your local VS Code, not on the instance.
 
 ## Tear down
 
@@ -231,13 +234,18 @@ aws cloudformation delete-stack \
   --stack-name ec2-console --region eu-west-1
 ```
 
-This destroys the instance, security group, and EBS volume. The key pair persists in AWS until you delete it separately. The CRD registration is also invalidated when the instance is destroyed.
+With Terraform: `terraform -chdir=terraform destroy`.
+
+This destroys the instance, security group, and EBS volume (and, with Terraform, its VPC). The key pair persists in AWS until you delete it separately. The CRD registration is also invalidated when the instance is destroyed.
 
 ## Project structure
 
 ```
 .
 ├── cloudformation.yaml                         # EC2 + security group
+├── terraform/main.tf                           # Terraform equivalent (+ minimal VPC)
+├── docs/RUNBOOK-terraform.md                   # Step-by-step student guide (Terraform + CRD)
+├── dbai/                                       # Separate DBAI course path (see dbai/README.md)
 ├── playbook.yml                                # Main playbook (imports tasks/)
 ├── ansible.cfg
 ├── inventory.yml
@@ -256,7 +264,7 @@ This destroys the instance, security group, and EBS volume. The key pair persist
 │   └── project-jupyterlab-micromamba.yml        # JupyterLab + Micromamba boilerplate
 ├── files/
 │   ├── desktop/
-│   │   └── xsession                           # CRD session startup (XFCE)
+│   │   └── xfconf/                             # XFCE panel + power manager config
 │   ├── terminal/
 │   │   ├── kitty.conf                          # Kitty terminal config
 │   │   ├── zellij-config.kdl                   # Zellij config
@@ -279,7 +287,7 @@ This destroys the instance, security group, and EBS volume. The key pair persist
 | c6i.xlarge           | Intel (fixed)     | 4    | 8 GB  | $0.1700 |
 | m6a.xlarge           | AMD (general)     | 4    | 16 GB | $0.1728 |
 
-Override: `--parameters ParameterKey=InstanceType,ParameterValue=c6a.xlarge`
+Override: `--parameters ParameterKey=InstanceType,ParameterValue=c6a.xlarge` (CloudFormation) or `terraform apply -var instance_type=c6a.xlarge` (Terraform)
 
 ## Extending
 
@@ -287,11 +295,11 @@ Create a task file in `tasks/`, import it in `playbook.yml` with a tag. Add conf
 
 ## Notes
 
-- The security group opens ports **22** (SSH) and **8888-8889** (JupyterLab) to `0.0.0.0/0`. Chrome Remote Desktop uses outbound connections only -- no inbound port needed. Restrict the CIDR in `cloudformation.yaml` for tighter access control.
+- The security group opens ports **22** (SSH) and **8888-8889** (JupyterLab) to `0.0.0.0/0`. Chrome Remote Desktop uses outbound connections only -- no inbound port needed. Restrict the CIDR in `cloudformation.yaml` / `terraform/main.tf` for tighter access control.
 - CRD registration is a **one-time manual step** per instance (requires a Google account). After registration, **reboot the instance** for CRD to start cleanly on boot.
 - Stale CRD temp files (`/tmp/chrome_remote_desktop_*`) can prevent the host from connecting. Remove them and restart the service if CRD shows as disabled.
-- The instance uses a **25 GB gp3** root volume. Increase `VolumeSize` in `cloudformation.yaml` if needed.
-- If the AWS account has no default VPC: `aws ec2 create-default-vpc --region eu-west-1`.
+- The instance uses a **25 GB gp3** root volume. Increase `VolumeSize` in `cloudformation.yaml` / `volume_size` in `terraform/main.tf` if needed.
+- CloudFormation needs a default VPC. If the account has none: `aws ec2 create-default-vpc --region eu-west-1`. Terraform creates its own VPC.
 
 ## License
 

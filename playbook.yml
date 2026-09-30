@@ -42,7 +42,7 @@
       tags: [vscode]
       import_tasks: tasks/vscode.yml
 
-    - name: Chromium browser
+    - name: Google Chrome browser
       tags: [browser]
       import_tasks: tasks/browser.yml
 
