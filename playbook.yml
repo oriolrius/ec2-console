@@ -34,7 +34,7 @@
       tags: [desktop]
       import_tasks: tasks/desktop.yml
 
-    - name: Terminal tooling (Kitty, Nerd Fonts, oh-my-posh, Zellij)
+    - name: Terminal tooling (Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr)
       tags: [terminal]
       import_tasks: tasks/terminal.yml
 
@@ -42,7 +42,7 @@
       tags: [vscode]
       import_tasks: tasks/vscode.yml
 
-    - name: Chromium browser
+    - name: Google Chrome browser
       tags: [browser]
       import_tasks: tasks/browser.yml
 

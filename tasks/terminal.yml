@@ -1,5 +1,5 @@
 ---
-# Kitty terminal + Nerd Fonts + oh-my-posh + Zellij
+# Kitty terminal + Nerd Fonts + oh-my-posh + Zellij + herdr
 # Full terminal development experience
 
 - name: Install Kitty terminal
@@ -86,6 +86,12 @@
       | tar xz -C /usr/local/bin
   args:
     creates: /usr/local/bin/zellij
+
+- name: Install herdr (coding-agent runtime)
+  get_url:
+    url: https://github.com/herdrdev/herdr/releases/latest/download/herdr-linux-x86_64
+    dest: /usr/local/bin/herdr
+    mode: '0755'
 
 - name: Deploy Zellij config
   become_user: ubuntu

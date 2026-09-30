@@ -2,9 +2,9 @@
 
 A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2 instance with a full graphical desktop, modern terminal tooling, and VS Code -- accessible via SSH, Chrome Remote Desktop, or a browser.
 
-**Infrastructure** is defined in CloudFormation (one command to create, one to destroy). **Provisioning** is handled by an idempotent Ansible playbook with modular, tagged task files.
+**Infrastructure** is defined in CloudFormation or, equivalently, Terraform (one command to create, one to destroy). **Provisioning** is handled by an idempotent Ansible playbook with modular, tagged task files.
 
-> **DBAI course users:** there is a separate, Terraform-based course path under [`dbai/`](dbai/README.md) (controller CLI, phase profiles, per-student state). It does not affect this CloudFormation + Ansible route, which is unchanged.
+> **DBAI course users:** there is a separate, Terraform-based course path under [`dbai/`](dbai/README.md) (controller CLI, phase profiles, per-student state). It is unrelated to [`terraform/`](terraform/main.tf), which is the plain Terraform equivalent of `cloudformation.yaml` used with this Ansible playbook.
 
 [![Watch the demo](docs/demo-thumbnail.jpg)](https://youtu.be/hT7XWxzp-n0)
 > **[Watch the full demo on YouTube](https://youtu.be/hT7XWxzp-n0)** -- deployment, provisioning, and usage walkthrough (click the image above)
@@ -31,6 +31,7 @@ A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2
 | **Kitty**                                   | `terminal`   | Terminal with native Nerd Font support       |
 | **oh-my-posh**                              | `terminal`   | Modern shell prompt with glyphs              |
 | **Zellij**                                  | `terminal`   | Terminal multiplexer                         |
+| **herdr**                                   | `terminal`   | Runtime for coding agents                    |
 | **Nerd Fonts**                              | `terminal`   | JetBrainsMono + Symbols fallback             |
 | **VS Code**                                 | `vscode`     | Code editor with Python/Jupyter extensions   |
 | **Google Chrome**                           | `browser`    | Web browser for desktop sessions             |
@@ -46,58 +47,22 @@ Two example projects under `/home/ubuntu/` demonstrate different Python environm
 
 Both include `start.sh`, a hello-world notebook, and `.vscode/settings.json` for automatic kernel selection.
 
-## Prerequisites
+## Getting started
 
-- **AWS CLI** configured with valid credentials — install: [Windows](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-windows.html) | [macOS](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-mac.html) | [Linux](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html)
-- **UV** installed locally — install: [Windows / macOS / Linux](https://docs.astral.sh/uv/getting-started/installation/)
+Pick one of the two step-by-step runbooks. Both create the same machine and then provision it with the same Ansible playbook, including the Chrome Remote Desktop setup:
 
-## Deploy
+| Runbook | Infrastructure | Use it when |
+| ------- | -------------- | ----------- |
+| [docs/RUNBOOK-terraform.md](docs/RUNBOOK-terraform.md) | [`terraform/`](terraform/main.tf) | Recommended. Creates its own VPC, so it works in any account. |
+| [docs/RUNBOOK-cloudformation.md](docs/RUNBOOK-cloudformation.md) | [`cloudformation.yaml`](cloudformation.yaml) | No Terraform installed. Needs a default VPC. |
 
-### 1. Create the key pair (first time only)
+## Ansible tags
 
-```bash
-aws ec2 create-key-pair \
-  --key-name ec2-key \
-  --region eu-west-1 \
-  --query 'KeyMaterial' \
-  --output text > ec2-key.pem
-chmod 600 ec2-key.pem
-```
-
-### 2. Launch the instance
+The runbooks install everything. To (re)install only some components, pass tags. The host IP is found automatically by [`scripts/host-ip.sh`](scripts/host-ip.sh) (Terraform output, else the `ec2-console` CloudFormation stack); set `JUPYTER_IP=<public-ip>` to target another machine.
 
 ```bash
-aws cloudformation create-stack \
-  --stack-name ec2-console \
-  --template-body file://cloudformation.yaml \
-  --parameters ParameterKey=KeyName,ParameterValue=ec2-key \
-  --region eu-west-1
-
-# Wait and get the IP
-aws cloudformation wait stack-create-complete \
-  --stack-name ec2-console --region eu-west-1
-
-aws cloudformation describe-stacks \
-  --stack-name ec2-console --region eu-west-1 \
-  --query 'Stacks[0].Outputs[?OutputKey==`PublicIP`].OutputValue' \
-  --output text
+uv run ansible-playbook playbook.yml --tags "docker,desktop"
 ```
-
-### 3. Provision with Ansible
-
-```bash
-uv sync
-JUPYTER_IP=<public-ip> uv run ansible-playbook playbook.yml
-```
-
-This installs everything. To run only specific components, use tags:
-
-```bash
-JUPYTER_IP=<public-ip> uv run ansible-playbook playbook.yml --tags "docker,desktop"
-```
-
-<details>
-<summary>Available tags</summary>
 
 | Tag                       | What it provisions                                   |
 | ------------------------- | ---------------------------------------------------- |
@@ -108,57 +73,28 @@ JUPYTER_IP=<public-ip> uv run ansible-playbook playbook.yml --tags "docker,deskt
 | `uv`                    | UV package manager                                   |
 | `micromamba`            | Micromamba package manager                           |
 | `desktop`               | XFCE4 desktop + Chrome Remote Desktop                |
-| `terminal`              | Kitty, Nerd Fonts, oh-my-posh, Zellij                |
+| `terminal`              | Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr         |
 | `vscode`                | VS Code + Python/Jupyter extensions                  |
 | `browser`               | Google Chrome                                        |
 | `projects`              | All boilerplate projects                             |
 | `jupyterlab-uv`         | JupyterLab UV project only                           |
 | `jupyterlab-micromamba` | JupyterLab Micromamba project only                   |
 
-</details>
-
 The playbook is idempotent. Re-run it any time to apply updates or fix drift.
 
-### 4. Connect
+## Troubleshooting Chrome Remote Desktop
 
-**SSH:**
-
-```bash
-ssh -i ec2-key.pem ubuntu@<public-ip>
-```
-
-**Chrome Remote Desktop (one-time setup per instance):**
-
-1. SSH into the instance
-2. On your local browser, go to https://remotedesktop.google.com/headless
-3. Click **Set up via SSH** > **Begin** > **Next** > **Authorize**
-4. Select **Debian Linux**, copy the `DISPLAY= /opt/google/chrome-remote-desktop/start-host ...` command
-5. Paste and run on the SSH session, set a 6-digit PIN when prompted
-6. **Reboot the instance** -- this is required for CRD to start cleanly:
-   ```bash
-   sudo reboot
-   ```
-7. After ~30 seconds, the instance appears as online at https://remotedesktop.google.com
-
-CRD uses Google's relay so no inbound port is needed. The XFCE desktop starts automatically with Kitty as the default terminal, Nerd Fonts, and oh-my-posh.
-
-**Troubleshooting CRD:**
+The runbooks cover the one-time setup. If the host stays offline or shows "disabled":
 
 ```bash
-# Check service status
-sudo systemctl status chrome-remote-desktop@ubuntu
-
-# Restart CRD
-sudo systemctl restart chrome-remote-desktop@ubuntu
-
-# If CRD shows "disabled" in the web UI, clean restart:
-sudo systemctl stop chrome-remote-desktop@ubuntu
+sudo systemctl status chrome-remote-desktop@ubuntu    # check the service
+sudo systemctl stop chrome-remote-desktop@ubuntu      # clean restart
 rm -rf /tmp/chrome_remote_desktop_*
 sudo systemctl start chrome-remote-desktop@ubuntu
-
-# If still disabled after clean restart, reboot:
-sudo reboot
+sudo reboot                                           # if still disabled
 ```
+
+## Using the machine
 
 **JupyterLab:**
 
@@ -207,30 +143,29 @@ Host ec2-console
 
 When the EC2 IP changes after a new deployment, update the `HostName` line in your SSH config. Everything else stays the same.
 
-### Recommended VS Code extensions (installed on remote)
+### VS Code extensions (installed on the instance)
 
-- **Python** -- language support, linting, debugging
-- **Jupyter** -- notebook editing and kernel management
-- **Docker** -- container management from the sidebar
-- **Remote - SSH** -- already needed for the connection
+From `files/vscode/extensions.txt`:
 
-## Tear down
+- **Python**, **Pylance**, **Python Environments**, **Python Debugger** -- language support, linting, debugging
+- **Jupyter** (with keymap, renderers, cell tags, slideshow) -- notebook editing and kernel management
+- **uv-toolkit** -- UV project support
 
-```bash
-aws cloudformation delete-stack \
-  --stack-name ec2-console --region eu-west-1
-```
-
-This destroys the instance, security group, and EBS volume. The key pair persists in AWS until you delete it separately. The CRD registration is also invalidated when the instance is destroyed.
+**Remote - SSH** is installed on your local VS Code, not on the instance.
 
 ## Project structure
 
 ```
 .
 ├── cloudformation.yaml                         # EC2 + security group
+├── terraform/main.tf                           # Terraform equivalent (+ minimal VPC)
+├── docs/RUNBOOK-terraform.md                   # Step-by-step guide: Terraform + Ansible + CRD
+├── docs/RUNBOOK-cloudformation.md              # Step-by-step guide: CloudFormation + Ansible + CRD
+├── dbai/                                       # Separate DBAI course path (see dbai/README.md)
 ├── playbook.yml                                # Main playbook (imports tasks/)
 ├── ansible.cfg
-├── inventory.yml
+├── inventory.yml                               # Host IP via scripts/host-ip.sh
+├── scripts/host-ip.sh                          # JUPYTER_IP, else Terraform output, else CF stack
 ├── tasks/
 │   ├── base.yml                                # System packages
 │   ├── awscli.yml                              # AWS CLI v2
@@ -239,14 +174,14 @@ This destroys the instance, security group, and EBS volume. The key pair persist
 │   ├── uv.yml                                  # UV package manager
 │   ├── micromamba.yml                           # Micromamba
 │   ├── desktop.yml                             # XFCE4 + Chrome Remote Desktop
-│   ├── terminal.yml                            # Kitty, Nerd Fonts, oh-my-posh, Zellij
+│   ├── terminal.yml                            # Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr
 │   ├── vscode.yml                              # VS Code + extensions
 │   ├── browser.yml                             # Google Chrome
 │   ├── project-jupyterlab-uv.yml               # JupyterLab + UV boilerplate
 │   └── project-jupyterlab-micromamba.yml        # JupyterLab + Micromamba boilerplate
 ├── files/
 │   ├── desktop/
-│   │   └── xsession                           # CRD session startup (XFCE)
+│   │   └── xfconf/                             # XFCE panel + power manager config
 │   ├── terminal/
 │   │   ├── kitty.conf                          # Kitty terminal config
 │   │   ├── zellij-config.kdl                   # Zellij config
@@ -261,15 +196,17 @@ This destroys the instance, security group, and EBS volume. The key pair persist
 
 ## Instance types (eu-west-1, on-demand)
 
-| Instance             | CPU               | vCPU | RAM   | $/hr    |
-| -------------------- | ----------------- | ---- | ----- | ------- |
-| **t3a.xlarge** | AMD (burstable)   | 4    | 16 GB | $0.1504 |
-| c6a.xlarge           | AMD (fixed)       | 4    | 8 GB  | $0.1530 |
-| t3.xlarge            | Intel (burstable) | 4    | 16 GB | $0.1664 |
-| c6i.xlarge           | Intel (fixed)     | 4    | 8 GB  | $0.1700 |
-| m6a.xlarge           | AMD (general)     | 4    | 16 GB | $0.1728 |
+| Instance             | CPU               | vCPU | RAM   | $/hr    | $/month (24/7) |
+| -------------------- | ----------------- | ---- | ----- | ------- | -------------- |
+| **t3a.xlarge** | AMD (burstable)   | 4    | 16 GB | $0.1632 | $119.14        |
+| c6a.xlarge           | AMD (fixed)       | 4    | 8 GB  | $0.1642 | $119.84        |
+| t3.xlarge            | Intel (burstable) | 4    | 16 GB | $0.1824 | $133.15        |
+| c6i.xlarge           | Intel (fixed)     | 4    | 8 GB  | $0.1824 | $133.15        |
+| m6a.xlarge           | AMD (general)     | 4    | 16 GB | $0.1926 | $140.60        |
 
-Override: `--parameters ParameterKey=InstanceType,ParameterValue=c6a.xlarge`
+Prices from the AWS Pricing API (September 2026), Linux, shared tenancy. The monthly figure is 730 hours. A stopped instance costs nothing for compute, but the 25 GB gp3 disk always adds about **$2.20/month** until the machine is deleted.
+
+Override: `terraform -chdir=terraform apply -var instance_type=c6a.xlarge` (Terraform) or add `ParameterKey=InstanceType,ParameterValue=c6a.xlarge` to `--parameters` (CloudFormation).
 
 ## Extending
 
@@ -277,11 +214,8 @@ Create a task file in `tasks/`, import it in `playbook.yml` with a tag. Add conf
 
 ## Notes
 
-- The security group opens ports **22** (SSH) and **8888-8889** (JupyterLab) to `0.0.0.0/0`. Chrome Remote Desktop uses outbound connections only -- no inbound port needed. Restrict the CIDR in `cloudformation.yaml` for tighter access control.
-- CRD registration is a **one-time manual step** per instance (requires a Google account). After registration, **reboot the instance** for CRD to start cleanly on boot.
-- Stale CRD temp files (`/tmp/chrome_remote_desktop_*`) can prevent the host from connecting. Remove them and restart the service if CRD shows as disabled.
-- The instance uses a **25 GB gp3** root volume. Increase `VolumeSize` in `cloudformation.yaml` if needed.
-- If the AWS account has no default VPC: `aws ec2 create-default-vpc --region eu-west-1`.
+- The security group opens ports **22** (SSH) and **8888-8889** (JupyterLab) to `0.0.0.0/0`. Chrome Remote Desktop uses outbound connections only -- no inbound port needed. Restrict the CIDR in `terraform/main.tf` / `cloudformation.yaml` for tighter access control.
+- The instance uses a **25 GB gp3** root volume. Increase `volume_size` in `terraform/main.tf` / `VolumeSize` in `cloudformation.yaml` if needed.
 
 ## License
 

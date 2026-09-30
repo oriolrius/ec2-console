@@ -19,4 +19,5 @@ skip-check:
   - CKV_AWS_135   # EBS-optimized flag — t3 instances are EBS-optimized by default; the attribute is a no-op.
   - CKV2_AWS_19   # EIP not attached — by design (ENV-03): the address is decoupled and outlives the VM across rebuilds.
   - CKV2_AWS_11   # VPC flow logs — adds CloudWatch/S3 + IAM; out of scope/cost for a single-user course VM.
+  - CKV_AWS_260   # Port 80 from 0.0.0.0/0 — false positive: the dynamic rule opens 80 only to explicit web_ingress_cidrs (default empty) and the VM's own EIP /32 (operations-0.3.0).
   - CKV2_AWS_41   # No IAM role on the instance — intentional; the VM carries no AWS privileges.

@@ -12,11 +12,11 @@ Parameters:
     Type: String
     Default: t3a.xlarge
     AllowedValues:
-      - t3a.xlarge   # 4 vCPU, 16 GB, AMD  — $0.1504/hr (cheapest)
-      - c6a.xlarge   # 4 vCPU,  8 GB, AMD  — $0.1530/hr (fixed perf)
-      - t3.xlarge    # 4 vCPU, 16 GB, Intel — $0.1664/hr
-      - c6i.xlarge   # 4 vCPU,  8 GB, Intel — $0.1700/hr
-      - m6a.xlarge   # 4 vCPU, 16 GB, AMD  — $0.1728/hr
+      - t3a.xlarge   # 4 vCPU, 16 GB, AMD  — $0.1632/hr (cheapest)
+      - c6a.xlarge   # 4 vCPU,  8 GB, AMD  — $0.1642/hr (fixed perf)
+      - t3.xlarge    # 4 vCPU, 16 GB, Intel — $0.1824/hr
+      - c6i.xlarge   # 4 vCPU,  8 GB, Intel — $0.1824/hr
+      - m6a.xlarge   # 4 vCPU, 16 GB, AMD  — $0.1926/hr
     Description: >
       EC2 instance type (4+ vCPU). t3a.xlarge is the cheapest AMD burstable
       option — good default for development workloads.

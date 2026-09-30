@@ -12,3 +12,8 @@ dbai/terraform/**/.terraform/
 dbai/terraform/**/*.tfstate
 dbai/terraform/**/*.tfstate.*
 dbai/terraform/modules/**/.terraform.lock.hcl
+
+# Root Terraform (CF equivalent) — local state
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*

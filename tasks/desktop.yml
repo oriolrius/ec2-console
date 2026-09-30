@@ -88,6 +88,35 @@
     src: "files/desktop/xfconf/xfce4-power-manager.xml"
     dest: "{{ ubuntu_home }}/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml"
 
+- name: Dock launchers (Kitty, file manager, Chrome, VS Code) referenced by xfce4-panel.xml plugins 17-20
+  become_user: ubuntu
+  vars:
+    dock_launchers:
+      - { id: 17, file: 17748746351.desktop, name: Kitty, exec: kitty, icon: kitty }
+      - { id: 18, file: 17748746352.desktop, name: Files, exec: thunar, icon: org.xfce.thunar }
+      - { id: 19, file: 17748746353.desktop, name: Google Chrome, exec: google-chrome-stable, icon: google-chrome }
+      - { id: 20, file: 17748746354.desktop, name: Visual Studio Code, exec: code, icon: vscode }
+  block:
+    - name: Create dock launcher directories
+      file:
+        path: "{{ ubuntu_home }}/.config/xfce4/panel/launcher-{{ item.id }}"
+        state: directory
+      loop: "{{ dock_launchers }}"
+
+    - name: Deploy dock launcher desktop files
+      copy:
+        dest: "{{ ubuntu_home }}/.config/xfce4/panel/launcher-{{ item.id }}/{{ item.file }}"
+        content: |
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name={{ item.name }}
+          Exec={{ item.exec }}
+          Icon={{ item.icon }}
+          Terminal=false
+          StartupNotify=true
+      loop: "{{ dock_launchers }}"
+
 - name: Disable NetworkManager applet autostart
   copy:
     dest: /etc/xdg/autostart/nm-applet.desktop
@@ -96,4 +125,15 @@
       Type=Application
       Name=Network
       Hidden=true
+    mode: '0644'
+
+- name: Allow colord actions without a password (remote sessions have no admin prompt)
+  copy:
+    dest: /etc/polkit-1/rules.d/45-allow-colord.rules
+    content: |
+      polkit.addRule(function(action, subject) {
+          if (action.id.indexOf("org.freedesktop.color-manager.") == 0) {
+              return polkit.Result.YES;
+          }
+      });
     mode: '0644'
