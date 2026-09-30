@@ -31,6 +31,7 @@ A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2
 | **Kitty**                                   | `terminal`   | Terminal with native Nerd Font support       |
 | **oh-my-posh**                              | `terminal`   | Modern shell prompt with glyphs              |
 | **Zellij**                                  | `terminal`   | Terminal multiplexer                         |
+| **herdr**                                   | `terminal`   | Runtime for coding agents                    |
 | **Nerd Fonts**                              | `terminal`   | JetBrainsMono + Symbols fallback             |
 | **VS Code**                                 | `vscode`     | Code editor with Python/Jupyter extensions   |
 | **Google Chrome**                           | `browser`    | Web browser for desktop sessions             |
@@ -115,7 +116,7 @@ JUPYTER_IP=<public-ip> uv run ansible-playbook playbook.yml --tags "docker,deskt
 | `uv`                    | UV package manager                                   |
 | `micromamba`            | Micromamba package manager                           |
 | `desktop`               | XFCE4 desktop + Chrome Remote Desktop                |
-| `terminal`              | Kitty, Nerd Fonts, oh-my-posh, Zellij                |
+| `terminal`              | Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr         |
 | `vscode`                | VS Code + Python/Jupyter extensions                  |
 | `browser`               | Google Chrome                                        |
 | `projects`              | All boilerplate projects                             |
@@ -246,7 +247,7 @@ This destroys the instance, security group, and EBS volume. The key pair persist
 │   ├── uv.yml                                  # UV package manager
 │   ├── micromamba.yml                           # Micromamba
 │   ├── desktop.yml                             # XFCE4 + Chrome Remote Desktop
-│   ├── terminal.yml                            # Kitty, Nerd Fonts, oh-my-posh, Zellij
+│   ├── terminal.yml                            # Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr
 │   ├── vscode.yml                              # VS Code + extensions
 │   ├── browser.yml                             # Google Chrome
 │   ├── project-jupyterlab-uv.yml               # JupyterLab + UV boilerplate
