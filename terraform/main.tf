@@ -151,5 +151,5 @@ output "ssh_command" {
 
 output "ansible_command" {
   description = "Run Ansible provisioning"
-  value       = "JUPYTER_IP=${aws_instance.this.public_ip} uv run ansible-playbook playbook.yml"
+  value       = "uv run ansible-playbook playbook.yml"
 }

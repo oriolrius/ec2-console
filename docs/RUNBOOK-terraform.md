@@ -5,6 +5,7 @@ Follow these steps in order. When you finish, you will have an Ubuntu workstatio
 **Time needed:** about 30 minutes. Most of it is waiting for step 6.
 
 **Where to run the commands:**
+
 - **Linux / macOS:** a normal terminal.
 - **Windows:** an **Ubuntu (WSL2)** terminal, not PowerShell.
 
@@ -14,12 +15,12 @@ Follow these steps in order. When you finish, you will have an Ubuntu workstatio
 
 You need `git`, the AWS CLI v2, Terraform (1.5 or newer) and `uv`.
 
-| Tool | How to install |
-|---|---|
-| git | `sudo apt install git` (macOS: `brew install git`) |
+| Tool       | How to install                                                                |
+| ---------- | ----------------------------------------------------------------------------- |
+| git        | `sudo apt install git` (macOS: `brew install git`)                        |
 | AWS CLI v2 | https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html |
-| Terraform | https://developer.hashicorp.com/terraform/install |
-| uv | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| Terraform  | https://developer.hashicorp.com/terraform/install                             |
+| uv         | `curl -LsSf https://astral.sh/uv/install.sh \| sh`                           |
 
 Check that all four work:
 
@@ -47,7 +48,6 @@ Run every remaining command from inside this `ec2-console` folder.
    ```bash
    export AWS_REGION=eu-west-1
    ```
-
 5. Check that it works. This should print your account:
 
    ```bash
@@ -87,8 +87,10 @@ echo $IP
 ## 6. Install the software
 
 ```bash
-JUPYTER_IP=$IP uv run ansible-playbook playbook.yml
+uv run ansible-playbook playbook.yml
 ```
+
+It finds your machine's IP by itself, from Terraform.
 
 This takes about 15 minutes. It installs the desktop, Chrome Remote Desktop, VS Code, Docker, the Kubernetes tools, and the rest.
 

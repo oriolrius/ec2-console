@@ -98,6 +98,8 @@ uv sync
 JUPYTER_IP=<public-ip> uv run ansible-playbook playbook.yml
 ```
 
+With the Terraform route, `JUPYTER_IP` is optional: without it, the inventory reads the IP from `terraform output`.
+
 This installs everything. To run only specific components, use tags:
 
 ```bash
