@@ -47,67 +47,22 @@ Two example projects under `/home/ubuntu/` demonstrate different Python environm
 
 Both include `start.sh`, a hello-world notebook, and `.vscode/settings.json` for automatic kernel selection.
 
-## Prerequisites
+## Getting started
 
-- **AWS CLI** configured with valid credentials — install: [Windows](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-windows.html) | [macOS](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-mac.html) | [Linux](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html)
-- **UV** installed locally — install: [Windows / macOS / Linux](https://docs.astral.sh/uv/getting-started/installation/)
+Pick one of the two step-by-step runbooks. Both create the same machine and then provision it with the same Ansible playbook, including the Chrome Remote Desktop setup:
 
-## Deploy
+| Runbook | Infrastructure | Use it when |
+| ------- | -------------- | ----------- |
+| [docs/RUNBOOK-terraform.md](docs/RUNBOOK-terraform.md) | [`terraform/`](terraform/main.tf) | Recommended. Creates its own VPC, so it works in any account. |
+| [docs/RUNBOOK-cloudformation.md](docs/RUNBOOK-cloudformation.md) | [`cloudformation.yaml`](cloudformation.yaml) | No Terraform installed. Needs a default VPC. |
 
-### 1. Create the key pair (first time only)
+## Ansible tags
 
-```bash
-aws ec2 create-key-pair \
-  --key-name ec2-key \
-  --region eu-west-1 \
-  --query 'KeyMaterial' \
-  --output text > ec2-key.pem
-chmod 600 ec2-key.pem
-```
-
-### 2. Launch the instance
+The runbooks install everything. To (re)install only some components, pass tags. With Terraform the host IP is read from `terraform output`; with CloudFormation, set `JUPYTER_IP=<public-ip>` in front:
 
 ```bash
-aws cloudformation create-stack \
-  --stack-name ec2-console \
-  --template-body file://cloudformation.yaml \
-  --parameters ParameterKey=KeyName,ParameterValue=ec2-key \
-  --region eu-west-1
-
-# Wait and get the IP
-aws cloudformation wait stack-create-complete \
-  --stack-name ec2-console --region eu-west-1
-
-aws cloudformation describe-stacks \
-  --stack-name ec2-console --region eu-west-1 \
-  --query 'Stacks[0].Outputs[?OutputKey==`PublicIP`].OutputValue' \
-  --output text
+uv run ansible-playbook playbook.yml --tags "docker,desktop"
 ```
-
-**Alternative: Terraform** ([`terraform/`](terraform/main.tf), step-by-step student guide: [docs/RUNBOOK-terraform.md](docs/RUNBOOK-terraform.md)) creates the same instance and security group. Unlike the CF template, it also creates a minimal public VPC, so it works in accounts without a default VPC:
-
-```bash
-cd terraform && terraform init && terraform apply    # prints public_ip
-terraform destroy                                    # tear down
-```
-
-### 3. Provision with Ansible
-
-```bash
-uv sync
-JUPYTER_IP=<public-ip> uv run ansible-playbook playbook.yml
-```
-
-With the Terraform route, `JUPYTER_IP` is optional: without it, the inventory reads the IP from `terraform output`.
-
-This installs everything. To run only specific components, use tags:
-
-```bash
-JUPYTER_IP=<public-ip> uv run ansible-playbook playbook.yml --tags "docker,desktop"
-```
-
-<details>
-<summary>Available tags</summary>
 
 | Tag                       | What it provisions                                   |
 | ------------------------- | ---------------------------------------------------- |
@@ -125,50 +80,21 @@ JUPYTER_IP=<public-ip> uv run ansible-playbook playbook.yml --tags "docker,deskt
 | `jupyterlab-uv`         | JupyterLab UV project only                           |
 | `jupyterlab-micromamba` | JupyterLab Micromamba project only                   |
 
-</details>
-
 The playbook is idempotent. Re-run it any time to apply updates or fix drift.
 
-### 4. Connect
+## Troubleshooting Chrome Remote Desktop
 
-**SSH:**
-
-```bash
-ssh -i ec2-key.pem ubuntu@<public-ip>
-```
-
-**Chrome Remote Desktop (one-time setup per instance):**
-
-1. SSH into the instance
-2. On your local browser, go to https://remotedesktop.google.com/headless
-3. Click **Begin** > **Next** > **Authorize**
-4. In the **Debian Linux** section, copy the `DISPLAY= /opt/google/chrome-remote-desktop/start-host ...` command
-5. Paste and run on the SSH session, set a 6-digit PIN when prompted
-6. **Reboot the instance** -- this is required for CRD to start cleanly:
-   ```bash
-   sudo reboot
-   ```
-7. After ~30 seconds, the instance appears as online at https://remotedesktop.google.com
-
-CRD uses Google's relay so no inbound port is needed. The XFCE desktop starts automatically with Kitty as the default terminal, Nerd Fonts, and oh-my-posh.
-
-**Troubleshooting CRD:**
+The runbooks cover the one-time setup. If the host stays offline or shows "disabled":
 
 ```bash
-# Check service status
-sudo systemctl status chrome-remote-desktop@ubuntu
-
-# Restart CRD
-sudo systemctl restart chrome-remote-desktop@ubuntu
-
-# If CRD shows "disabled" in the web UI, clean restart:
-sudo systemctl stop chrome-remote-desktop@ubuntu
+sudo systemctl status chrome-remote-desktop@ubuntu    # check the service
+sudo systemctl stop chrome-remote-desktop@ubuntu      # clean restart
 rm -rf /tmp/chrome_remote_desktop_*
 sudo systemctl start chrome-remote-desktop@ubuntu
-
-# If still disabled after clean restart, reboot:
-sudo reboot
+sudo reboot                                           # if still disabled
 ```
+
+## Using the machine
 
 **JupyterLab:**
 
@@ -227,24 +153,14 @@ From `files/vscode/extensions.txt`:
 
 **Remote - SSH** is installed on your local VS Code, not on the instance.
 
-## Tear down
-
-```bash
-aws cloudformation delete-stack \
-  --stack-name ec2-console --region eu-west-1
-```
-
-With Terraform: `terraform -chdir=terraform destroy`.
-
-This destroys the instance, security group, and EBS volume (and, with Terraform, its VPC). The key pair persists in AWS until you delete it separately. The CRD registration is also invalidated when the instance is destroyed.
-
 ## Project structure
 
 ```
 .
 ├── cloudformation.yaml                         # EC2 + security group
 ├── terraform/main.tf                           # Terraform equivalent (+ minimal VPC)
-├── docs/RUNBOOK-terraform.md                   # Step-by-step student guide (Terraform + CRD)
+├── docs/RUNBOOK-terraform.md                   # Step-by-step guide: Terraform + Ansible + CRD
+├── docs/RUNBOOK-cloudformation.md              # Step-by-step guide: CloudFormation + Ansible + CRD
 ├── dbai/                                       # Separate DBAI course path (see dbai/README.md)
 ├── playbook.yml                                # Main playbook (imports tasks/)
 ├── ansible.cfg
@@ -279,15 +195,17 @@ This destroys the instance, security group, and EBS volume (and, with Terraform,
 
 ## Instance types (eu-west-1, on-demand)
 
-| Instance             | CPU               | vCPU | RAM   | $/hr    |
-| -------------------- | ----------------- | ---- | ----- | ------- |
-| **t3a.xlarge** | AMD (burstable)   | 4    | 16 GB | $0.1504 |
-| c6a.xlarge           | AMD (fixed)       | 4    | 8 GB  | $0.1530 |
-| t3.xlarge            | Intel (burstable) | 4    | 16 GB | $0.1664 |
-| c6i.xlarge           | Intel (fixed)     | 4    | 8 GB  | $0.1700 |
-| m6a.xlarge           | AMD (general)     | 4    | 16 GB | $0.1728 |
+| Instance             | CPU               | vCPU | RAM   | $/hr    | $/month (24/7) |
+| -------------------- | ----------------- | ---- | ----- | ------- | -------------- |
+| **t3a.xlarge** | AMD (burstable)   | 4    | 16 GB | $0.1632 | $119.14        |
+| c6a.xlarge           | AMD (fixed)       | 4    | 8 GB  | $0.1642 | $119.84        |
+| t3.xlarge            | Intel (burstable) | 4    | 16 GB | $0.1824 | $133.15        |
+| c6i.xlarge           | Intel (fixed)     | 4    | 8 GB  | $0.1824 | $133.15        |
+| m6a.xlarge           | AMD (general)     | 4    | 16 GB | $0.1926 | $140.60        |
 
-Override: `--parameters ParameterKey=InstanceType,ParameterValue=c6a.xlarge` (CloudFormation) or `terraform apply -var instance_type=c6a.xlarge` (Terraform)
+Prices from the AWS Pricing API (September 2026), Linux, shared tenancy. The monthly figure is 730 hours. A stopped instance costs nothing for compute, but the 25 GB gp3 disk always adds about **$2.20/month** until the machine is deleted.
+
+Override: `terraform -chdir=terraform apply -var instance_type=c6a.xlarge` (Terraform) or add `ParameterKey=InstanceType,ParameterValue=c6a.xlarge` to `--parameters` (CloudFormation).
 
 ## Extending
 
@@ -295,11 +213,8 @@ Create a task file in `tasks/`, import it in `playbook.yml` with a tag. Add conf
 
 ## Notes
 
-- The security group opens ports **22** (SSH) and **8888-8889** (JupyterLab) to `0.0.0.0/0`. Chrome Remote Desktop uses outbound connections only -- no inbound port needed. Restrict the CIDR in `cloudformation.yaml` / `terraform/main.tf` for tighter access control.
-- CRD registration is a **one-time manual step** per instance (requires a Google account). After registration, **reboot the instance** for CRD to start cleanly on boot.
-- Stale CRD temp files (`/tmp/chrome_remote_desktop_*`) can prevent the host from connecting. Remove them and restart the service if CRD shows as disabled.
-- The instance uses a **25 GB gp3** root volume. Increase `VolumeSize` in `cloudformation.yaml` / `volume_size` in `terraform/main.tf` if needed.
-- CloudFormation needs a default VPC. If the account has none: `aws ec2 create-default-vpc --region eu-west-1`. Terraform creates its own VPC.
+- The security group opens ports **22** (SSH) and **8888-8889** (JupyterLab) to `0.0.0.0/0`. Chrome Remote Desktop uses outbound connections only -- no inbound port needed. Restrict the CIDR in `terraform/main.tf` / `cloudformation.yaml` for tighter access control.
+- The instance uses a **25 GB gp3** root volume. Increase `volume_size` in `terraform/main.tf` / `VolumeSize` in `cloudformation.yaml` if needed.
 
 ## License
 
