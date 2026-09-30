@@ -58,7 +58,7 @@ Pick one of the two step-by-step runbooks. Both create the same machine and then
 
 ## Ansible tags
 
-The runbooks install everything. To (re)install only some components, pass tags. With Terraform the host IP is read from `terraform output`; with CloudFormation, set `JUPYTER_IP=<public-ip>` in front:
+The runbooks install everything. To (re)install only some components, pass tags. The host IP is found automatically by [`scripts/host-ip.sh`](scripts/host-ip.sh) (Terraform output, else the `ec2-console` CloudFormation stack); set `JUPYTER_IP=<public-ip>` to target another machine.
 
 ```bash
 uv run ansible-playbook playbook.yml --tags "docker,desktop"
@@ -164,7 +164,8 @@ From `files/vscode/extensions.txt`:
 ├── dbai/                                       # Separate DBAI course path (see dbai/README.md)
 ├── playbook.yml                                # Main playbook (imports tasks/)
 ├── ansible.cfg
-├── inventory.yml
+├── inventory.yml                               # Host IP via scripts/host-ip.sh
+├── scripts/host-ip.sh                          # JUPYTER_IP, else Terraform output, else CF stack
 ├── tasks/
 │   ├── base.yml                                # System packages
 │   ├── awscli.yml                              # AWS CLI v2

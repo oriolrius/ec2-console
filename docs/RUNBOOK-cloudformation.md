@@ -19,9 +19,9 @@ You need `git`, the AWS CLI v2 and `uv`.
 
 | Tool       | How to install                                                                |
 | ---------- | ----------------------------------------------------------------------------- |
-| git        | `sudo apt install git` (macOS: `brew install git`)                            |
+| git        | `sudo apt install git` (macOS: `brew install git`)                        |
 | AWS CLI v2 | https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html |
-| uv         | `curl -LsSf https://astral.sh/uv/install.sh \| sh`                            |
+| uv         | `curl -LsSf https://astral.sh/uv/install.sh \| sh`                           |
 
 Check that all three work:
 
@@ -103,10 +103,10 @@ echo $ID $IP
 ## 6. Install the software
 
 ```bash
-JUPYTER_IP=$IP uv run ansible-playbook playbook.yml
+uv run ansible-playbook playbook.yml
 ```
 
-`JUPYTER_IP` tells Ansible which machine to configure.
+It finds your machine's IP by itself, from the CloudFormation stack.
 
 This takes about 15 minutes. It installs the desktop, Chrome Remote Desktop, VS Code, Docker, the Kubernetes tools, and the rest.
 

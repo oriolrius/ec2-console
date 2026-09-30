@@ -1,5 +1,5 @@
 all:
   hosts:
     jupyter:
-      # JUPYTER_IP if set (CloudFormation route), otherwise the Terraform output.
-      ansible_host: "{{ lookup('env', 'JUPYTER_IP') or lookup('pipe', 'terraform -chdir=' ~ playbook_dir ~ '/terraform output -raw public_ip') }}"
+      # JUPYTER_IP, the Terraform output, or the CloudFormation stack (see the script).
+      ansible_host: "{{ lookup('pipe', playbook_dir ~ '/scripts/host-ip.sh') }}"
