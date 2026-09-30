@@ -108,7 +108,7 @@ The first time, type `yes` to trust the machine. Leave this SSH session open, be
 
 1. On your own computer, open **https://remotedesktop.google.com/headless** in your browser and sign in with your Google account.
 2. Click **Begin**, then **Next**, then **Authorize**.
-3. Choose **Debian Linux**. You will see a command that starts with `DISPLAY= /opt/google/chrome-remote-desktop/start-host ...`. Click the copy button.
+3. Focus on section **Debian Linux**. You will see a command that starts with `DISPLAY= /opt/google/chrome-remote-desktop/start-host ...`. Click the copy button.
 4. Paste that command into the **SSH session from step 7** and press Enter.
 5. When asked, type a **6-digit PIN** twice. Remember it: you need it every time you connect.
 6. Restart the machine. This is required the first time:
