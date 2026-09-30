@@ -62,11 +62,10 @@ gh auth status
 ### A3. Start chezmoi
 
 ```bash
-chezmoi init
-chezmoi cd        # opens a shell inside the source directory
+chezmoi cd        # creates ~/.local/share/chezmoi and opens a shell inside it
 ```
 
-`chezmoi init` creates the source directory `~/.local/share/chezmoi` as an **empty git repository**, and nothing else yet. `chezmoi cd` takes you inside it. Stay in this shell for steps A4–A6.
+You are now in the source directory, still empty. Stay in this shell for steps A4–A6.
 
 ### A4. Ask for your name and email instead of storing them
 
@@ -82,14 +81,14 @@ cat > .chezmoi.toml.tmpl <<'EOF'
 EOF
 ```
 
-Now run `chezmoi init` **again**. This is not a repeat of A3: this time chezmoi finds `.chezmoi.toml.tmpl`, asks the two questions, and saves your answers in `~/.config/chezmoi/chezmoi.toml`, on this machine only. Your repository contains the questions, not your answers.
+Now run `chezmoi init`. It turns the source directory into a git repository, finds `.chezmoi.toml.tmpl`, asks the two questions, and saves your answers in `~/.config/chezmoi/chezmoi.toml`, on this machine only. Your repository contains the questions, not your answers.
 
 ```bash
 chezmoi init
 cat ~/.config/chezmoi/chezmoi.toml    # shows your answers
 ```
 
-> Re-running `chezmoi init` is safe. It never deletes your source directory, and `promptStringOnce` only asks questions that don't have an answer yet.
+> Running `chezmoi init` again later is safe. It never deletes your source directory, and `promptStringOnce` only asks questions that don't have an answer yet.
 
 ### A5. Add a templated `.gitconfig`
 
