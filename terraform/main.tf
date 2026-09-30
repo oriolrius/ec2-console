@@ -139,6 +139,11 @@ output "public_ip" {
   value       = aws_instance.this.public_ip
 }
 
+output "instance_id" {
+  description = "Instance ID (for stop/start)"
+  value       = aws_instance.this.id
+}
+
 output "ssh_command" {
   description = "SSH into the instance"
   value       = "ssh -i ec2-key.pem ubuntu@${aws_instance.this.public_ip}"

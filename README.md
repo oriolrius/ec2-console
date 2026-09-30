@@ -84,7 +84,7 @@ aws cloudformation describe-stacks \
   --output text
 ```
 
-**Alternative: Terraform** ([`terraform/`](terraform/main.tf)) creates the same instance and security group. Unlike the CF template, it also creates a minimal public VPC, so it works in accounts without a default VPC:
+**Alternative: Terraform** ([`terraform/`](terraform/main.tf), step-by-step student guide: [docs/RUNBOOK-terraform.md](docs/RUNBOOK-terraform.md)) creates the same instance and security group. Unlike the CF template, it also creates a minimal public VPC, so it works in accounts without a default VPC:
 
 ```bash
 cd terraform && terraform init && terraform apply    # prints public_ip
