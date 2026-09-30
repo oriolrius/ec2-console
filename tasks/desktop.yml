@@ -97,3 +97,14 @@
       Name=Network
       Hidden=true
     mode: '0644'
+
+- name: Allow colord actions without a password (remote sessions have no admin prompt)
+  copy:
+    dest: /etc/polkit-1/rules.d/45-allow-colord.rules
+    content: |
+      polkit.addRule(function(action, subject) {
+          if (action.id.indexOf("org.freedesktop.color-manager.") == 0) {
+              return polkit.Result.YES;
+          }
+      });
+    mode: '0644'
