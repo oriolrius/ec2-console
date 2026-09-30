@@ -6,11 +6,11 @@ Your ec2-console machine is **disposable**. When the AWS sandbox lease ends, the
 
 ## What goes where
 
-| What                                            | Tool                         | Where it lives                |
-| ----------------------------------------------- | ---------------------------- | ----------------------------- |
-| Software (Docker, VS Code, desktop, ...)        | Ansible playbook             | the `ec2-console` repository  |
-| **Your configuration** (shell, git, editors...) | **chezmoi**                  | your private `ec2-console-config` repository |
-| Your project work (code)                        | git                          | one repository per project    |
+| What                                                  | Tool              | Where it lives                                |
+| ----------------------------------------------------- | ----------------- | --------------------------------------------- |
+| Software (Docker, VS Code, desktop, ...)              | Ansible playbook  | the`ec2-console` repository                 |
+| **Your configuration** (shell, git, editors...) | **chezmoi** | your private`ec2-console-config` repository |
+| Your project work (code)                              | git               | one repository per project                    |
 
 ## How chezmoi works (2-minute version)
 
@@ -66,7 +66,7 @@ chezmoi init
 chezmoi cd        # opens a shell inside the source directory
 ```
 
-You are now in `~/.local/share/chezmoi`, an empty git repository. Stay in this shell for steps A4–A6.
+`chezmoi init` creates the source directory `~/.local/share/chezmoi` as an **empty git repository**, and nothing else yet. `chezmoi cd` takes you inside it. Stay in this shell for steps A4–A6.
 
 ### A4. Ask for your name and email instead of storing them
 
@@ -82,11 +82,14 @@ cat > .chezmoi.toml.tmpl <<'EOF'
 EOF
 ```
 
-When you run `chezmoi init`, chezmoi asks these two questions once and saves the answers in `~/.config/chezmoi/chezmoi.toml`, on this machine only. Your repository contains the questions, not your answers. Answer them now:
+Now run `chezmoi init` **again**. This is not a repeat of A3: this time chezmoi finds `.chezmoi.toml.tmpl`, asks the two questions, and saves your answers in `~/.config/chezmoi/chezmoi.toml`, on this machine only. Your repository contains the questions, not your answers.
 
 ```bash
 chezmoi init
+cat ~/.config/chezmoi/chezmoi.toml    # shows your answers
 ```
+
+> Re-running `chezmoi init` is safe. It never deletes your source directory, and `promptStringOnce` only asks questions that don't have an answer yet.
 
 ### A5. Add a templated `.gitconfig`
 
@@ -176,14 +179,14 @@ Refresh the repository page on GitHub: you should see `dot_bashrc`, `dot_gitconf
 
 When you change a managed file, save the change to the repository.
 
-| I want to...                        | Command                                            |
-| ----------------------------------- | -------------------------------------------------- |
-| Edit a managed file                 | `chezmoi edit ~/.bashrc`, then `chezmoi apply`     |
-| Keep a change I made directly       | `chezmoi re-add` (copies changed files back into the source) |
-| Start managing a new file           | `chezmoi add ~/.config/<app>/<file>`               |
-| See what differs                    | `chezmoi status` or `chezmoi diff`                 |
-| Stop managing a file                | `chezmoi forget ~/.some-file`                      |
-| Save everything to GitHub           | `chezmoi git -- add -A`, then `chezmoi git -- commit -m "update config"`, then `chezmoi git -- push` |
+| I want to...                  | Command                                                                                                    |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Edit a managed file           | `chezmoi edit ~/.bashrc`, then `chezmoi apply`                                                         |
+| Keep a change I made directly | `chezmoi re-add` (copies changed files back into the source)                                             |
+| Start managing a new file     | `chezmoi add ~/.config/<app>/<file>`                                                                     |
+| See what differs              | `chezmoi status` or `chezmoi diff`                                                                     |
+| Stop managing a file          | `chezmoi forget ~/.some-file`                                                                            |
+| Save everything to GitHub     | `chezmoi git -- add -A`, then `chezmoi git -- commit -m "update config"`, then `chezmoi git -- push` |
 
 > **Push before the lease ends.** Anything not pushed is lost when the machine is deleted. Make `chezmoi git -- push` a habit, just like pushing your project code.
 
@@ -225,12 +228,12 @@ Ansible writes a **default** version of some files (for example `kitty.conf`, th
 
 ## Troubleshooting
 
-| Problem | Fix |
-| ------- | --- |
-| `Authentication failed` when cloning or pushing | Run `gh auth status`. If you're not logged in, run `gh auth login`; otherwise run `gh auth setup-git`. |
-| `could not open a new TTY` | You ran chezmoi without an interactive terminal (for example from a script). Run it in a normal SSH session, or pass the answers: `--promptString "Your full name (for git commits)=Your Name" --promptString "Your email (for git commits)=you@example.com"`. |
-| A file is not restored | `chezmoi managed` shows whether it is managed. If not, `chezmoi add` it on the old machine and push. |
-| Anything else | `chezmoi doctor` checks the installation. |
+| Problem                                           | Fix                                                                                                                                                                                                                                                             |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Authentication failed` when cloning or pushing | Run`gh auth status`. If you're not logged in, run `gh auth login`; otherwise run `gh auth setup-git`.                                                                                                                                                     |
+| `could not open a new TTY`                      | You ran chezmoi without an interactive terminal (for example from a script). Run it in a normal SSH session, or pass the answers:`--promptString "Your full name (for git commits)=Your Name" --promptString "Your email (for git commits)=you@example.com"`. |
+| A file is not restored                            | `chezmoi managed` shows whether it is managed. If not, `chezmoi add` it on the old machine and push.                                                                                                                                                        |
+| Anything else                                     | `chezmoi doctor` checks the installation.                                                                                                                                                                                                                     |
 
 ## Further reading
 
