@@ -44,17 +44,6 @@ screen_size() {
 
 mkdir -p "$RECORDINGS_DIR"
 
-echo "Waiting for the CRD X display"
-while :; do
-  if read -r xorg_pid display xauth < <(crd_display); then
-    export DISPLAY="$display" XAUTHORITY="${xauth:-$HOME/.Xauthority}"
-    size=$(screen_size)
-    [ -n "$size" ] && break
-  fi
-  sleep 2
-done
-echo "CRD display detected: $DISPLAY ($size, Xorg pid $xorg_pid)"
-
 ffmpeg_pid=""
 stopping=0
 
@@ -78,8 +67,29 @@ finalize() {
   echo "Recording stopped"
 }
 
-# `systemctl stop` (KillMode=mixed) signals only this script.
-trap 'echo "Stop requested; finalizing the recording"; finalize; exit 0' INT TERM
+# Sleeps in the background so a stop signal interrupts the wait at once.
+sleep_pid=""
+pause() {
+  sleep "$1" &
+  sleep_pid=$!
+  wait "$sleep_pid"
+}
+
+# `systemctl stop` (KillMode=mixed) signals only this script. The pending
+# sleep is ended here too, or systemd would have to SIGKILL it.
+trap '[ -n "$sleep_pid" ] && kill "$sleep_pid" 2>/dev/null
+echo "Stop requested; finalizing the recording"; finalize; exit 0' INT TERM
+
+echo "Waiting for the CRD X display"
+while :; do
+  if read -r xorg_pid display xauth < <(crd_display); then
+    export DISPLAY="$display" XAUTHORITY="${xauth:-$HOME/.Xauthority}"
+    size=$(screen_size)
+    [ -n "$size" ] && break
+  fi
+  pause 2
+done
+echo "CRD display detected: $DISPLAY ($size, Xorg pid $xorg_pid)"
 
 # A keyframe on every clock boundary lets the segment muxer cut exactly on the
 # hour; zerolatency avoids encoder delay that would shift cuts and file names.
@@ -100,10 +110,11 @@ ffmpeg -hide_banner -nostdin -loglevel warning \
 ffmpeg_pid=$!
 echo "Recording started: $DISPLAY at $size, $FPS fps, into $RECORDINGS_DIR"
 
+# The loop's stderr is discarded: bash reports a background job killed by a
+# signal there ("Killed  ffmpeg -hide_banner ..." with the whole command line).
+# Our messages go to stdout, and ffmpeg keeps its own stderr (the journal).
 while :; do
-  # Background sleep + wait: a stop signal interrupts `wait` at once.
-  sleep "$POLL_SECONDS" &
-  wait $!
+  pause "$POLL_SECONDS"
   # CRD ends a session (logout, restart) by killing its X server; it may start
   # a new one on the same display right away, so follow the process.
   if ! kill -0 "$xorg_pid" 2>/dev/null; then
@@ -133,4 +144,4 @@ while :; do
     finalize
     exit 0
   fi
-done
+done 2>/dev/null
