@@ -31,6 +31,10 @@ jobs:
     defaults:
       run:
         working-directory: crd-recorder-gui
+    env:
+      # Same flags for every step, so vet, tests and the build share one build
+      # cache (compiling the gotk3 cgo bindings is what takes the time).
+      GOFLAGS: -trimpath
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -39,16 +43,24 @@ jobs:
           cache-dependency-path: crd-recorder-gui/go.sum
       - name: Install GTK 3 development files
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-3-dev
+      # A tag points at a commit already tested on main: build only.
       - name: Vet
+        if: github.ref_type != 'tag'
         run: go vet ./...
       - name: Test
-        run: go test -race ./...
+        if: github.ref_type != 'tag'
+        run: go test ./...
+      # -race recompiles every dependency; the GTK-free packages are where
+      # the goroutines are, so the race detector runs on those only.
+      - name: Race test (GTK-free packages)
+        if: github.ref_type != 'tag'
+        run: go test -race ./internal/config ./internal/instance ./internal/journal ./internal/recorder ./internal/systemd ./internal/upload
       - name: Build
         env:
           VERSION: ${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
         run: |
           mkdir -p dist
-          go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o dist/crd-recorder-gui-linux-amd64 .
+          go build -ldflags "-s -w -X main.version=${VERSION}" -o dist/crd-recorder-gui-linux-amd64 .
           cd dist && sha256sum crd-recorder-gui-linux-amd64 > crd-recorder-gui-linux-amd64.sha256
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
