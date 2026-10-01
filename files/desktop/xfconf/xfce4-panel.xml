@@ -17,6 +17,7 @@
         <value type="int" value="2"/>
         <value type="int" value="3"/>
         <value type="int" value="5"/>
+        <value type="int" value="6"/>
         <value type="int" value="9"/>
         <value type="int" value="10"/>
         <value type="int" value="11"/>
@@ -38,6 +39,7 @@
         <value type="int" value="18"/>
         <value type="int" value="19"/>
         <value type="int" value="20"/>
+        <value type="int" value="23"/>
         <value type="int" value="21"/>
         <value type="int" value="22"/>
       </property>
@@ -54,6 +56,13 @@
     </property>
     <property name="plugin-5" type="string" value="separator">
       <property name="style" type="uint" value="0"/>
+    </property>
+    <property name="plugin-6" type="string" value="systray">
+      <property name="square-icons" type="bool" value="true"/>
+      <!-- Pre-seeded so the plugin does not rewrite this file when the icon first appears. -->
+      <property name="known-legacy-items" type="array">
+        <value type="string" value="crd recorder"/>
+      </property>
     </property>
     <property name="plugin-9" type="string" value="power-manager-plugin"/>
     <property name="plugin-10" type="string" value="notification-plugin"/>
@@ -85,6 +94,11 @@
     <property name="plugin-20" type="string" value="launcher">
       <property name="items" type="array">
         <value type="string" value="17748746354.desktop"/>
+      </property>
+    </property>
+    <property name="plugin-23" type="string" value="launcher">
+      <property name="items" type="array">
+        <value type="string" value="17748746355.desktop"/>
       </property>
     </property>
     <property name="plugin-21" type="string" value="separator"/>

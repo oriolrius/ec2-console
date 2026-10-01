@@ -4,6 +4,20 @@
   become: true
   vars:
     ubuntu_home: /home/ubuntu
+    # CRD session recorder (tasks/recorder.yml)
+    crd_recorder_user: ubuntu
+    crd_recorder_dir: "{{ ubuntu_home }}/recordings"
+    crd_recorder_fps: 1
+    crd_recorder_segment_seconds: 3600
+    # Whether recording is on after the first install (later runs keep the
+    # user's choice made in the CRD Recorder app).
+    crd_recorder_enabled: true
+    # Release of the CRD Recorder app to install ("latest" or a tag such as v1.8.0).
+    # Set crd_recorder_gui_src=<path> to install a local build instead.
+    crd_recorder_gui_version: latest
+    crd_recorder_gui_url: >-
+      https://github.com/oriolrius/ec2-console/releases/{{ 'latest/download' if crd_recorder_gui_version == 'latest'
+      else 'download/' ~ crd_recorder_gui_version }}/crd-recorder-gui-linux-amd64
 
   tasks:
     - name: System baseline
@@ -34,6 +48,10 @@
       tags: [desktop]
       import_tasks: tasks/desktop.yml
 
+    - name: CRD session recorder (systemd + ffmpeg) and the CRD Recorder app
+      tags: [recorder]
+      import_tasks: tasks/recorder.yml
+
     - name: Terminal tooling (Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr)
       tags: [terminal]
       import_tasks: tasks/terminal.yml
@@ -53,3 +71,12 @@
     - name: Project — JupyterLab (Micromamba)
       tags: [projects, jupyterlab-micromamba]
       import_tasks: tasks/project-jupyterlab-micromamba.yml
+
+  handlers:
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+
+    # try-restart: only if it is running; a recorder the user stopped stays stopped.
+    - name: Restart crd-recorder
+      command: systemctl try-restart crd-recorder.service
