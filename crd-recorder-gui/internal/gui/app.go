@@ -57,8 +57,8 @@ func NewApp(store *config.Store, version string) (*App, error) {
 	a := &App{store: store, pollCh: make(chan struct{}, 1)}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	gtk.WindowSetDefaultIconName(config.AppName)
-	a.win = newWindow(a)
-	t, err := tray.New(config.AppName, AppTitle, tray.Actions{
+	a.win = newWindow(a, version)
+	t, err := tray.New(config.AppName, AppTitle, version, tray.Actions{
 		Open: a.ShowWindow, Toggle: a.ToggleRecording, Upload: a.Upload, Quit: a.Quit,
 	})
 	if err != nil {
