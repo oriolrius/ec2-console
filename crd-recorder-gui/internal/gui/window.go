@@ -63,10 +63,10 @@ func frame(title string, child gtk.IWidget) *gtk.Frame {
 	return f
 }
 
-func newWindow(a *App) *window {
+func newWindow(a *App, version string) *window {
 	v := &window{}
 	v.w = must(gtk.WindowNew(gtk.WINDOW_TOPLEVEL))
-	v.w.SetTitle(AppTitle)
+	v.w.SetTitle(AppTitle + " " + version)
 	v.w.SetDefaultSize(780, 640)
 	v.w.SetIconName(config.AppName)
 	// Closing hides the window; the app keeps running in the tray.

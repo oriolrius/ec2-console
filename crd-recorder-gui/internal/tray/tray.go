@@ -21,17 +21,19 @@ type Actions struct {
 
 // Tray is the status icon plus its menu.
 type Tray struct {
-	title  string
-	icon   *statusIcon
-	toggle *gtk.MenuItem
-	pix    map[recorder.State]*gdk.Pixbuf
-	state  recorder.State
-	shown  bool
+	title   string
+	version string
+	icon    *statusIcon
+	toggle  *gtk.MenuItem
+	pix     map[recorder.State]*gdk.Pixbuf
+	state   recorder.State
+	shown   bool
 }
 
-// New creates the tray icon. title prefixes the tooltip ("CRD Recorder — Recording").
-func New(name, title string, a Actions) (*Tray, error) {
-	t := &Tray{title: title, pix: map[recorder.State]*gdk.Pixbuf{}}
+// New creates the tray icon. The tooltip reads "<title> — <state>" with the
+// version on a second line.
+func New(name, title, version string, a Actions) (*Tray, error) {
+	t := &Tray{title: title, version: version, pix: map[recorder.State]*gdk.Pixbuf{}}
 	for state, l := range looks {
 		pb, err := pixbuf(drawIcon(l))
 		if err != nil {
@@ -87,7 +89,7 @@ func (t *Tray) SetState(s recorder.State) {
 	}
 	t.state, t.shown = s, true
 	t.icon.setPixbuf(t.pix[s])
-	t.icon.setTooltip(t.title + " — " + s.String())
+	t.icon.setTooltip(t.title + " — " + s.String() + "\n" + t.version)
 	if s.Active() {
 		t.toggle.SetLabel("Stop Recording")
 	} else {
