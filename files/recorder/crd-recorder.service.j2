@@ -1,0 +1,34 @@
+# {{ ansible_managed }}
+# Records the Chrome Remote Desktop session. Started/stopped together with CRD;
+# toggled at runtime with `systemctl enable|disable --now crd-recorder`.
+[Unit]
+Description=Record the Chrome Remote Desktop session (ffmpeg, {{ crd_recorder_fps }} fps)
+Documentation=https://github.com/oriolrius/ec2-console#session-recording
+After=chrome-remote-desktop@{{ crd_recorder_user }}.service
+PartOf=chrome-remote-desktop@{{ crd_recorder_user }}.service
+StartLimitIntervalSec=0
+
+[Service]
+User={{ crd_recorder_user }}
+# The wrapper finds CRD's display and XAUTHORITY itself (no hard-coded :20).
+Environment=TZ=UTC
+EnvironmentFile=-/etc/default/crd-recorder
+ExecStart=/usr/local/bin/crd-recorder
+
+Restart=always
+RestartSec=5
+
+# SIGINT goes to the wrapper only, which forwards exactly one to ffmpeg (a
+# second SIGINT makes ffmpeg drop the MKV trailer) and waits for it. Anything
+# still running after TimeoutStopSec, or after the wrapper exits, is killed.
+KillSignal=SIGINT
+KillMode=mixed
+TimeoutStopSec=15
+
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+# No PrivateTmp=: the X11 socket lives in /tmp/.X11-unix.
+
+[Install]
+WantedBy=chrome-remote-desktop@{{ crd_recorder_user }}.service
