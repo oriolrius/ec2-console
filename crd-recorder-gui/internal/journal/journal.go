@@ -3,8 +3,10 @@ package journal
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -21,14 +23,36 @@ type Entry struct {
 	Priority   int // 0 emerg ... 7 debug
 }
 
-// Follow sends the unit's last `backlog` entries and then every new one to
-// out, until ctx is done. If journalctl exits it is restarted after the last
-// seen cursor, so nothing is lost or repeated; problems are sent as entries so
-// they show up next to the log lines.
-func Follow(ctx context.Context, unit string, backlog int, out chan<- Entry) {
+// Backlog returns the unit's last n entries and the cursor after them, so
+// Follow can continue exactly there. Reading it synchronously lets callers show
+// the history before anything newer.
+func Backlog(unit string, n int) ([]Entry, string, error) {
+	out, err := exec.Command("journalctl", "-u", unit, "-n", strconv.Itoa(n), "-o", "json", "--no-pager").Output()
+	if err != nil {
+		var ee *exec.ExitError
+		if errors.As(err, &ee) && len(ee.Stderr) > 0 {
+			return nil, "", fmt.Errorf("journalctl: %s", strings.TrimSpace(string(ee.Stderr)))
+		}
+		return nil, "", err
+	}
+	var entries []Entry
 	cursor := ""
+	for _, line := range bytes.Split(out, []byte("\n")) {
+		if e, c, err := parse(line); err == nil {
+			entries = append(entries, e)
+			cursor = c
+		}
+	}
+	return entries, cursor, nil
+}
+
+// Follow sends every entry after cursor (or, with no cursor, every new entry)
+// to out, until ctx is done. If journalctl exits it is restarted after the
+// last seen cursor, so nothing is lost or repeated; problems are sent as
+// entries so they show up next to the log lines.
+func Follow(ctx context.Context, unit, cursor string, out chan<- Entry) {
 	for {
-		err := follow(ctx, unit, backlog, &cursor, out)
+		err := follow(ctx, unit, &cursor, out)
 		if ctx.Err() != nil {
 			return
 		}
@@ -42,12 +66,12 @@ func Follow(ctx context.Context, unit string, backlog int, out chan<- Entry) {
 	}
 }
 
-func follow(ctx context.Context, unit string, backlog int, cursor *string, out chan<- Entry) error {
+func follow(ctx context.Context, unit string, cursor *string, out chan<- Entry) error {
 	args := []string{"-u", unit, "-f", "-o", "json", "--no-pager"}
 	if *cursor != "" {
 		args = append(args, "--after-cursor", *cursor)
 	} else {
-		args = append(args, "-n", strconv.Itoa(backlog))
+		args = append(args, "-n", "0")
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

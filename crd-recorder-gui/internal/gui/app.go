@@ -46,6 +46,7 @@ type App struct {
 	status     recorder.Status
 	haveStatus bool
 	toggling   bool
+	events     events
 
 	uploading atomic.Bool
 }
@@ -66,12 +67,21 @@ func NewApp(store *config.Store, version string) (*App, error) {
 	a.tray = t
 	a.win.setSettings(store.Config(), a.recordingsDir(), store.Dir())
 	a.refreshUploads()
+	// The recorder's recent history first, so the log reads in time order.
+	history, cursor, err := journal.Backlog(recorder.Unit, 30)
+	if err != nil {
+		a.win.appendLog(time.Now(), "journal", err.Error(), 4)
+	}
+	for _, e := range history {
+		a.appendJournal(e)
+	}
+	a.events.planned = false // only live lines announce the next restart
 	a.logf("%s %s started", AppTitle, version)
 	for _, w := range store.Warnings() {
 		a.log(4, "%s", w)
 	}
 	go a.pollLoop()
-	go a.followJournal()
+	go a.followJournal(cursor)
 	// The tray may appear after us (autostart order); tell the user if not.
 	glib.TimeoutAdd(15000, func() bool {
 		if !a.tray.Embedded() {
@@ -145,11 +155,9 @@ func (a *App) pollLoop() {
 func (a *App) applyStatus(st recorder.Status) {
 	prev, had := a.status, a.haveStatus
 	a.status, a.haveStatus = st, true
-	if !had || st.State != prev.State {
-		a.logTransition(prev.State, st, had)
-	}
-	if had && st.Restarts > prev.Restarts {
-		a.log(4, "Recorder restarted by systemd (%d automatic restart(s) so far)", st.Restarts)
+	now := time.Now()
+	for _, l := range a.events.status(prev, st, had) {
+		a.win.appendLog(now, "app", l.msg, l.priority)
 	}
 	for _, f := range st.Files {
 		if !slices.Contains(prev.Files, f) {
@@ -160,47 +168,30 @@ func (a *App) applyStatus(st recorder.Status) {
 	a.tray.SetState(st.State)
 }
 
-func (a *App) logTransition(from recorder.State, st recorder.Status, had bool) {
-	if had && from == recorder.Recording {
-		a.logf("Recording stopped")
-	}
-	switch st.State {
-	case recorder.Recording:
-		a.logf("Recording started")
-	case recorder.Waiting:
-		a.logf("Recorder waiting for the CRD session (X display)")
-	case recorder.Restarting:
-		a.log(4, "Recorder restarting (systemd starts it again in a few seconds)")
-	case recorder.Stopping:
-		a.logf("Recorder stopping; ffmpeg is finalizing the current file")
-	case recorder.Stopped:
-		if st.Enabled {
-			a.logf("Recorder stopped")
-		} else {
-			a.logf("Recorder stopped (recording disabled)")
-		}
-	case recorder.Error:
-		a.log(3, "Recorder error: %v", st.Err)
-	default:
-		a.logf("Recorder state: %s", st.State)
-	}
-}
-
-func (a *App) followJournal() {
+func (a *App) followJournal(cursor string) {
 	ch := make(chan journal.Entry, 256)
-	go journal.Follow(a.ctx, recorder.Unit, 30, ch)
+	go journal.Follow(a.ctx, recorder.Unit, cursor, ch)
 	for {
 		select {
 		case <-a.ctx.Done():
 			return
 		case e := <-ch:
-			source := e.Identifier
-			if source == "crd-recorder" {
-				source = "recorder"
-			}
-			glib.IdleAdd(func() { a.win.appendLog(e.Time, source, e.Message, e.Priority) })
+			glib.IdleAdd(func() { a.appendJournal(e) })
 		}
 	}
+}
+
+// appendJournal shows a journal entry, unless it is expected x11grab noise
+// (main thread).
+func (a *App) appendJournal(e journal.Entry) {
+	source := e.Identifier
+	if source == "crd-recorder" {
+		source = "recorder"
+		if !a.events.journalLine(e.Message) {
+			return
+		}
+	}
+	a.win.appendLog(e.Time, source, e.Message, e.Priority)
 }
 
 // ToggleRecording enables or disables crd-recorder.service (main thread).
