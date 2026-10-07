@@ -20,3 +20,6 @@ terraform/*.tfstate.*
 
 # Local builds of the CRD Recorder app
 crd-recorder-gui/dist/
+
+# Documentation images are tracked
+!docs/assets/**/*.png
