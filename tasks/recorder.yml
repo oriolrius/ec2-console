@@ -1,0 +1,172 @@
+---
+# CRD session recorder. Requires the `desktop` component.
+#
+#   crd-recorder.service   systemd unit, starts/stops with chrome-remote-desktop@<user>;
+#                          runs /usr/local/bin/crd-recorder (ffmpeg, 1 fps, UTC overlay,
+#                          H.264/MKV, hourly files in {{ crd_recorder_dir }}).
+#   crd-recorder-gui       desktop app "CRD Recorder": tray icon with the recording
+#                          state, start/stop (systemctl via a narrow sudoers rule),
+#                          upload of finished recordings to a Transfer.sh server.
+
+- name: Install recorder dependencies (ffmpeg, xdpyinfo, overlay font)
+  apt:
+    name:
+      - ffmpeg
+      - x11-utils
+      - fonts-dejavu-core
+    state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+# --- Migration from the XFCE-autostart recorder (hosts provisioned before) ----
+
+- name: Remove the old XFCE autostart entry of the recorder
+  file:
+    path: /etc/xdg/autostart/crd-recorder.desktop
+    state: absent
+  register: recorder_old_autostart
+
+- name: Stop recorders started by the old autostart (they finalize their file on SIGTERM)
+  shell: |
+    for pid in $(pgrep -f '^(/usr/bin/|/bin/)?bash /usr/local/bin/crd-recorder$'); do
+      grep -q crd-recorder.service "/proc/$pid/cgroup" 2>/dev/null && continue
+      kill -TERM "$pid" 2>/dev/null
+      # Give it the time to finalize its current file.
+      for _ in $(seq 30); do kill -0 "$pid" 2>/dev/null || break; sleep 0.5; done
+    done
+    true
+  when: recorder_old_autostart.changed
+  changed_when: true
+
+# --- Recording service ---------------------------------------------------------
+
+- name: Check whether the recorder service is already installed
+  stat:
+    path: /etc/systemd/system/crd-recorder.service
+  register: recorder_unit_before
+
+- name: Deploy the recorder wrapper
+  copy:
+    src: files/recorder/crd-recorder.sh
+    dest: /usr/local/bin/crd-recorder
+    mode: '0755'
+  notify: Restart crd-recorder
+
+- name: Recorder settings (/etc/default/crd-recorder)
+  copy:
+    dest: /etc/default/crd-recorder
+    content: |
+      # Settings of crd-recorder.service (managed by Ansible, tasks/recorder.yml).
+      # After editing: sudo systemctl restart crd-recorder
+      CRD_RECORDER_DIR={{ crd_recorder_dir }}
+      CRD_RECORDER_FPS={{ crd_recorder_fps }}
+      CRD_RECORDER_SEGMENT_SECONDS={{ crd_recorder_segment_seconds }}
+    mode: '0644'
+  notify: Restart crd-recorder
+
+- name: Deploy the crd-recorder systemd unit
+  template:
+    src: files/recorder/crd-recorder.service.j2
+    dest: /etc/systemd/system/crd-recorder.service
+    mode: '0644'
+  notify:
+    - Reload systemd
+    - Restart crd-recorder
+
+- name: Create the recordings directory
+  file:
+    path: "{{ crd_recorder_dir }}"
+    state: directory
+    owner: "{{ crd_recorder_user }}"
+    group: "{{ crd_recorder_user }}"
+    mode: '0750'
+
+# Only on first install: afterwards recording on/off is the user's choice
+# (CRD Recorder app, or systemctl enable|disable --now crd-recorder), and
+# re-running the playbook must not turn it back on.
+- name: Enable crd-recorder on first install (starts with every CRD session)
+  systemd:
+    name: crd-recorder.service
+    enabled: "{{ crd_recorder_enabled | bool }}"
+    state: "{{ 'started' if crd_recorder_enabled | bool else 'stopped' }}"
+    daemon_reload: true
+  when: not recorder_unit_before.stat.exists
+
+- name: Let the desktop user turn recording on/off (these two commands only, no password)
+  copy:
+    dest: /etc/sudoers.d/crd-recorder
+    content: |
+      # CRD Recorder (crd-recorder-gui) toggles recording with these commands.
+      {{ crd_recorder_user }} ALL=(root) NOPASSWD: /usr/bin/systemctl enable --now crd-recorder.service, /usr/bin/systemctl disable --now crd-recorder.service
+    mode: '0440'
+    validate: visudo -cf %s
+
+# Apply wrapper/settings/unit changes now, so a failure further down cannot
+# drop the restart.
+- name: Restart the recorder if its files changed
+  meta: flush_handlers
+
+# --- Desktop app ---------------------------------------------------------------
+
+- name: Install crd-recorder-gui from a local build
+  copy:
+    src: "{{ crd_recorder_gui_src }}"
+    dest: /usr/local/bin/crd-recorder-gui
+    mode: '0755'
+  when: crd_recorder_gui_src is defined
+
+- name: Install crd-recorder-gui from the GitHub release
+  when: crd_recorder_gui_src is not defined
+  block:
+    - name: Download crd-recorder-gui ({{ crd_recorder_gui_version }}) and check its sha256
+      get_url:
+        url: "{{ crd_recorder_gui_url }}"
+        checksum: "sha256:{{ crd_recorder_gui_url }}.sha256"
+        dest: /usr/local/bin/crd-recorder-gui
+        mode: '0755'
+  rescue:
+    # Recording works without the app; do not abort the rest of the playbook.
+    - name: Warn that the CRD Recorder app was not installed
+      debug:
+        msg: >-
+          CRD Recorder app not installed: no crd-recorder-gui-linux-amd64 asset in release
+          '{{ crd_recorder_gui_version }}' ({{ crd_recorder_gui_url }}). Publish a release
+          (cz bump + push the tag; CI attaches the binary) or pass -e crd_recorder_gui_src=<path>.
+
+- name: Install the CRD Recorder icon
+  copy:
+    src: files/recorder/crd-recorder-gui.svg
+    dest: /usr/share/pixmaps/crd-recorder-gui.svg
+    mode: '0644'
+
+- name: Install the CRD Recorder launcher (menu, dock)
+  copy:
+    dest: /usr/share/applications/crd-recorder-gui.desktop
+    content: |
+      [Desktop Entry]
+      Type=Application
+      Name=CRD Recorder
+      GenericName=Session recorder
+      Comment=Recording state, start/stop and upload of Chrome Remote Desktop recordings
+      Exec=crd-recorder-gui
+      Icon=crd-recorder-gui
+      Terminal=false
+      Categories=AudioVideo;Recorder;
+      StartupWMClass=crd-recorder-gui
+      StartupNotify=false
+    mode: '0644'
+
+- name: Start CRD Recorder in the tray with every XFCE session
+  copy:
+    dest: /etc/xdg/autostart/crd-recorder-gui.desktop
+    content: |
+      [Desktop Entry]
+      Type=Application
+      Name=CRD Recorder
+      Comment=Tray icon with the recording state
+      Exec=crd-recorder-gui --hidden
+      Icon=crd-recorder-gui
+      OnlyShowIn=XFCE;
+      NoDisplay=true
+      Terminal=false
+    mode: '0644'

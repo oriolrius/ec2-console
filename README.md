@@ -28,6 +28,7 @@ A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2
 | **UV**                                      | `uv`         | Fast Python package manager                  |
 | **Micromamba**                              | `micromamba` | Conda-compatible environment manager         |
 | **XFCE4 + Chrome Remote Desktop**           | `desktop`    | Graphical desktop via Google CRD             |
+| **CRD session recorder + CRD Recorder app** | `recorder`   | Records the CRD desktop to `~/recordings/`; tray app to control and upload |
 | **Kitty**                                   | `terminal`   | Terminal with native Nerd Font support       |
 | **oh-my-posh**                              | `terminal`   | Modern shell prompt with glyphs              |
 | **Zellij**                                  | `terminal`   | Terminal multiplexer                         |
@@ -76,6 +77,7 @@ uv run ansible-playbook playbook.yml --tags "docker,desktop"
 | `uv`                    | UV package manager                                   |
 | `micromamba`            | Micromamba package manager                           |
 | `desktop`               | XFCE4 desktop + Chrome Remote Desktop                |
+| `recorder`              | CRD session recorder + CRD Recorder app (needs `desktop`) |
 | `terminal`              | Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr         |
 | `dotfiles`              | chezmoi + GitHub CLI                                 |
 | `vscode`                | VS Code + Python/Jupyter extensions                  |
@@ -85,6 +87,43 @@ uv run ansible-playbook playbook.yml --tags "docker,desktop"
 | `jupyterlab-micromamba` | JupyterLab Micromamba project only                   |
 
 The playbook is idempotent. Re-run it any time to apply updates or fix drift.
+
+## Session recording
+
+The `recorder` component records the Chrome Remote Desktop desktop on the instance itself, and installs **CRD Recorder**, a small tray app to watch and control it and to upload the recordings.
+
+**Recording** (`crd-recorder.service`, systemd):
+
+- ffmpeg `x11grab` at **1 frame per second** (playback runs in real time), with the **UTC date/time** in the top-left corner, H.264 in MKV. Files are named after the UTC time they start (`~/recordings/crd_2026-09-30T14-00-00Z.mkv`) and are cut on every full UTC hour; a new file also starts whenever the recorder (re)starts.
+- The unit starts and stops together with `chrome-remote-desktop@ubuntu` (`WantedBy=`, `PartOf=`). On stop, systemd signals the wrapper, which asks ffmpeg to finalize the file (one SIGINT) and waits for it, before CRD removes the desktop.
+- The wrapper `/usr/local/bin/crd-recorder` only handles the X session. It waits for CRD's X display (found from the Xorg process CRD started, not assumed to be `:20`). It ends the current file when the desktop is resized or the session ends (e.g. XFCE logout), and systemd starts it again 5 s later. systemd also restarts it if ffmpeg crashes.
+- Settings: `/etc/default/crd-recorder` (`CRD_RECORDER_DIR`, `CRD_RECORDER_FPS`, `CRD_RECORDER_SEGMENT_SECONDS`), then `sudo systemctl restart crd-recorder`. Ansible variables of the same names (`crd_recorder_*` in [`playbook.yml`](playbook.yml)) set them.
+- Logs: `journalctl -u crd-recorder`.
+- CRD keeps the virtual desktop running after the client disconnects, so recording continues until the session ends. A mostly static desktop takes little space, but nothing is rotated: clean up `~/recordings/` on long-lived instances.
+
+**CRD Recorder app** (`crd-recorder-gui`, Go + GTK 3, source in [`crd-recorder-gui/`](crd-recorder-gui/)):
+
+- Starts hidden in the system tray with every XFCE session. The tray icon shows the recorder state: red dot = recording, grey ring = stopped, amber = waiting for the CRD session, blue = restarting, red ring = error. It is also in the dock and the Applications menu.
+- Clicking the tray or dock icon shows the window. Closing the window keeps the app in the tray. There is only ever one instance; launching it again brings the running window forward.
+- **Start/Stop recording** runs `systemctl enable|disable --now crd-recorder` through `sudo -n`. `/etc/sudoers.d/crd-recorder` allows exactly these two commands without a password, so the app does not depend on the blanket passwordless sudo that EC2 images give `ubuntu`. The choice persists: re-running the playbook enables recording only on the first install (`crd_recorder_enabled`).
+- **Upload** sends finished recordings to a Transfer.sh-compatible server (default `https://x.joor.net`), oldest first, and lists the returned URLs with a Copy button. The file ffmpeg is still writing is never uploaded (no process may have the file open, and it must be unchanged for 10 s). A failed upload stays pending for the next run.
+- The log view shows the recorder's journal next to the app's own events.
+- Settings (email, Transfer URL) are in `~/.config/crd-recorder-gui/config.json`, and what was uploaded in `state.json`.
+
+The app binary comes from this repository's GitHub releases: CI ([`crd-recorder-gui.yml`](.github/workflows/crd-recorder-gui.yml)) builds it on every `v*` tag. `crd_recorder_gui_version` (default `latest`) selects the release; `-e crd_recorder_gui_src=path/to/binary` installs a local build instead. If the release has no binary, the playbook warns and continues without the app. To build it yourself, run `cd crd-recorder-gui && go build .` (needs `libgtk-3-dev`).
+
+To test the recorder without registering a machine with Google, [`tests/crd-sim/`](tests/crd-sim/) has a stand-in for CRD's session handling.
+
+## Keyboard layout
+
+The Chrome Remote Desktop session starts with the layout in `keyboard_layout` (default `us`; any `setxkbmap` layout name). Set it to match **your** keyboard, or keys such as `ñ`, `@` and accents come out wrong:
+
+```bash
+uv run ansible-playbook playbook.yml -e keyboard_layout=es            # full install
+uv run ansible-playbook playbook.yml --tags desktop -e keyboard_layout=es   # change it later
+```
+
+The new layout applies from the next CRD session. To switch the current session right away, run `setxkbmap es` in a terminal inside the desktop.
 
 ## Troubleshooting Chrome Remote Desktop
 

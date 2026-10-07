@@ -1,0 +1,90 @@
+name: CRD Recorder app
+
+# Tests and builds crd-recorder-gui (Go + GTK 3). On a release tag (v*, created
+# by `cz bump`) the binary and its .sha256 are attached to the GitHub release,
+# where Ansible (tasks/recorder.yml) downloads them from.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - crd-recorder-gui/**
+      - .github/workflows/crd-recorder-gui.yml
+  pull_request:
+    paths:
+      - crd-recorder-gui/**
+      - .github/workflows/crd-recorder-gui.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gui-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test + build (linux/amd64)
+    # Same GTK and glibc as the target machines (Ubuntu 24.04).
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: crd-recorder-gui
+    env:
+      # Same flags for every step, so vet, tests and the build share one build
+      # cache (compiling the gotk3 cgo bindings is what takes the time).
+      GOFLAGS: -trimpath
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: crd-recorder-gui/go.mod
+          cache-dependency-path: crd-recorder-gui/go.sum
+      - name: Install GTK 3 development files
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-3-dev
+      # A tag points at a commit already tested on main: build only.
+      - name: Vet
+        if: github.ref_type != 'tag'
+        run: go vet ./...
+      - name: Test
+        if: github.ref_type != 'tag'
+        run: go test ./...
+      # -race recompiles every dependency; the GTK-free packages are where
+      # the goroutines are, so the race detector runs on those only.
+      - name: Race test (GTK-free packages)
+        if: github.ref_type != 'tag'
+        run: go test -race ./internal/config ./internal/instance ./internal/journal ./internal/recorder ./internal/systemd ./internal/upload
+      - name: Build
+        env:
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
+        run: |
+          mkdir -p dist
+          go build -ldflags "-s -w -X main.version=${VERSION}" -o dist/crd-recorder-gui-linux-amd64 .
+          cd dist && sha256sum crd-recorder-gui-linux-amd64 > crd-recorder-gui-linux-amd64.sha256
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: crd-recorder-gui-linux-amd64
+          path: crd-recorder-gui/dist/
+          if-no-files-found: error
+
+  release:
+    name: Attach to the GitHub release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: crd-recorder-gui-linux-amd64
+          path: dist
+      - name: Create the release if needed and upload the binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes
+          gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber

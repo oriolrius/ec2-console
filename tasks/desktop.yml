@@ -53,7 +53,7 @@
     content: |
       export CHROME_REMOTE_DESKTOP_DEFAULT_DESKTOP_SIZES="1920x1080"
       export LANG=en_US.UTF-8
-      setxkbmap us
+      setxkbmap {{ keyboard_layout }}
       startxfce4
     owner: ubuntu
     group: ubuntu
@@ -88,7 +88,7 @@
     src: "files/desktop/xfconf/xfce4-power-manager.xml"
     dest: "{{ ubuntu_home }}/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml"
 
-- name: Dock launchers (Kitty, file manager, Chrome, VS Code) referenced by xfce4-panel.xml plugins 17-20
+- name: Dock launchers (Kitty, file manager, Chrome, VS Code, CRD Recorder) referenced by xfce4-panel.xml plugins 17-20, 23
   become_user: ubuntu
   vars:
     dock_launchers:
@@ -96,6 +96,8 @@
       - { id: 18, file: 17748746352.desktop, name: Files, exec: thunar, icon: org.xfce.thunar }
       - { id: 19, file: 17748746353.desktop, name: Google Chrome, exec: google-chrome-stable, icon: google-chrome }
       - { id: 20, file: 17748746354.desktop, name: Visual Studio Code, exec: code, icon: vscode }
+      # Single-instance app: a second launch only raises the running window, so no startup spinner.
+      - { id: 23, file: 17748746355.desktop, name: CRD Recorder, exec: crd-recorder-gui, icon: crd-recorder-gui, startup_notify: false }
   block:
     - name: Create dock launcher directories
       file:
@@ -114,7 +116,7 @@
           Exec={{ item.exec }}
           Icon={{ item.icon }}
           Terminal=false
-          StartupNotify=true
+          StartupNotify={{ item.startup_notify | default(true) | string | lower }}
       loop: "{{ dock_launchers }}"
 
 - name: Disable NetworkManager applet autostart

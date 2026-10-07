@@ -108,6 +108,9 @@ uv run ansible-playbook playbook.yml
 
 It finds your machine's IP by itself, from the CloudFormation stack.
 
+> **Not a US keyboard?** The remote desktop uses a US layout by default. Add your layout, for example Spanish:
+> `uv run ansible-playbook playbook.yml -e keyboard_layout=es` (other examples: `fr`, `de`, `gb`, `latam`).
+
 This takes about 15 minutes. It installs the desktop, Chrome Remote Desktop, VS Code, Docker, the Kubernetes tools, and the rest.
 
 It is finished when you see a `PLAY RECAP` line with `failed=0`. If it fails partway, run the same command again. It continues where it stopped.
