@@ -53,7 +53,7 @@
     content: |
       export CHROME_REMOTE_DESKTOP_DEFAULT_DESKTOP_SIZES="1920x1080"
       export LANG=en_US.UTF-8
-      setxkbmap us
+      setxkbmap {{ keyboard_layout }}
       startxfce4
     owner: ubuntu
     group: ubuntu

@@ -110,6 +110,17 @@ The app binary comes from this repository's GitHub releases: CI ([`crd-recorder-
 
 To test the recorder without registering a machine with Google, [`tests/crd-sim/`](tests/crd-sim/) has a stand-in for CRD's session handling.
 
+## Keyboard layout
+
+The Chrome Remote Desktop session starts with the layout in `keyboard_layout` (default `us`; any `setxkbmap` layout name). Set it to match **your** keyboard, or keys such as `ñ`, `@` and accents come out wrong:
+
+```bash
+uv run ansible-playbook playbook.yml -e keyboard_layout=es            # full install
+uv run ansible-playbook playbook.yml --tags desktop -e keyboard_layout=es   # change it later
+```
+
+The new layout applies from the next CRD session. To switch the current session right away, run `setxkbmap es` in a terminal inside the desktop.
+
 ## Troubleshooting Chrome Remote Desktop
 
 The runbooks cover the one-time setup. If the host stays offline or shows "disabled":

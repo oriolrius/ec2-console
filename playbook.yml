@@ -4,6 +4,9 @@
   become: true
   vars:
     ubuntu_home: /home/ubuntu
+    # Keyboard layout of the Chrome Remote Desktop session (setxkbmap name):
+    # us, es, fr, de, gb, ... Override with: -e keyboard_layout=es
+    keyboard_layout: us
     # CRD session recorder (tasks/recorder.yml)
     crd_recorder_user: ubuntu
     crd_recorder_dir: "{{ ubuntu_home }}/recordings"
