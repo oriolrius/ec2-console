@@ -59,6 +59,10 @@
       tags: [terminal]
       import_tasks: tasks/terminal.yml
 
+    - name: Dotfiles (chezmoi + GitHub CLI)
+      tags: [dotfiles]
+      import_tasks: tasks/dotfiles.yml
+
     - name: Visual Studio Code
       tags: [vscode]
       import_tasks: tasks/vscode.yml

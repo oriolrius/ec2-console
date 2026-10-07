@@ -134,6 +134,8 @@ sudo systemctl restart chrome-remote-desktop@ubuntu
 
 If it is still offline, run `sudo reboot` and wait 30 seconds.
 
+> **Restore your personal configuration** (shell, git, editor settings) with chezmoi: see [TUTORIAL-chezmoi.md](TUTORIAL-chezmoi.md), Part C.
+
 ## 9. Save money: stop the machine when you are not using it
 
 A running machine costs money every hour, and a stopped one almost nothing.

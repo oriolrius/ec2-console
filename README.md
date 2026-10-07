@@ -34,6 +34,7 @@ A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2
 | **Zellij**                                  | `terminal`   | Terminal multiplexer                         |
 | **herdr**                                   | `terminal`   | Runtime for coding agents                    |
 | **Nerd Fonts**                              | `terminal`   | JetBrainsMono + Symbols fallback             |
+| **chezmoi + GitHub CLI**                    | `dotfiles`   | Restore your personal configuration ([tutorial](docs/TUTORIAL-chezmoi.md)) |
 | **VS Code**                                 | `vscode`     | Code editor with Python/Jupyter extensions   |
 | **Google Chrome**                           | `browser`    | Web browser for desktop sessions             |
 
@@ -57,6 +58,8 @@ Pick one of the two step-by-step runbooks. Both create the same machine and then
 | [docs/RUNBOOK-terraform.md](docs/RUNBOOK-terraform.md) | [`terraform/`](terraform/main.tf) | Recommended. Creates its own VPC, so it works in any account. |
 | [docs/RUNBOOK-cloudformation.md](docs/RUNBOOK-cloudformation.md) | [`cloudformation.yaml`](cloudformation.yaml) | No Terraform installed. Needs a default VPC. |
 
+To keep your personal configuration (shell, git, editor settings) across machines, follow [docs/TUTORIAL-chezmoi.md](docs/TUTORIAL-chezmoi.md): a private `ec2-console-config` repository managed with chezmoi, restored on a new machine with `gh auth login` and `chezmoi init --apply`.
+
 ## Ansible tags
 
 The runbooks install everything. To (re)install only some components, pass tags. The host IP is found automatically by [`scripts/host-ip.sh`](scripts/host-ip.sh) (Terraform output, else the `ec2-console` CloudFormation stack); set `JUPYTER_IP=<public-ip>` to target another machine.
@@ -76,6 +79,7 @@ uv run ansible-playbook playbook.yml --tags "docker,desktop"
 | `desktop`               | XFCE4 desktop + Chrome Remote Desktop                |
 | `recorder`              | CRD session recorder + CRD Recorder app (needs `desktop`) |
 | `terminal`              | Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr         |
+| `dotfiles`              | chezmoi + GitHub CLI                                 |
 | `vscode`                | VS Code + Python/Jupyter extensions                  |
 | `browser`               | Google Chrome                                        |
 | `projects`              | All boilerplate projects                             |
@@ -200,6 +204,7 @@ From `files/vscode/extensions.txt`:
 ├── terraform/main.tf                           # Terraform equivalent (+ minimal VPC)
 ├── docs/RUNBOOK-terraform.md                   # Step-by-step guide: Terraform + Ansible + CRD
 ├── docs/RUNBOOK-cloudformation.md              # Step-by-step guide: CloudFormation + Ansible + CRD
+├── docs/TUTORIAL-chezmoi.md                    # Keep/restore personal config with chezmoi
 ├── dbai/                                       # Separate DBAI course path (see dbai/README.md)
 ├── playbook.yml                                # Main playbook (imports tasks/)
 ├── ansible.cfg
@@ -214,6 +219,7 @@ From `files/vscode/extensions.txt`:
 │   ├── micromamba.yml                           # Micromamba
 │   ├── desktop.yml                             # XFCE4 + Chrome Remote Desktop
 │   ├── terminal.yml                            # Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr
+│   ├── dotfiles.yml                            # chezmoi + GitHub CLI
 │   ├── vscode.yml                              # VS Code + extensions
 │   ├── browser.yml                             # Google Chrome
 │   ├── project-jupyterlab-uv.yml               # JupyterLab + UV boilerplate
