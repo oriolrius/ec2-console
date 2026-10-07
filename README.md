@@ -35,6 +35,7 @@ A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2
 | **herdr**                                   | `terminal`   | Runtime for coding agents                    |
 | **Nerd Fonts**                              | `terminal`   | JetBrainsMono + Symbols fallback             |
 | **chezmoi + GitHub CLI**                    | `dotfiles`   | Restore your personal configuration ([tutorial](docs/TUTORIAL-chezmoi.md)) |
+| **DeepSeek Harness (`dsh`) + Node.js 22**   | `deepseek-harness` | Coding agent through the LiteLLM gateway ([below](#deepseek-harness)) |
 | **VS Code**                                 | `vscode`     | Code editor with Python/Jupyter extensions   |
 | **Google Chrome**                           | `browser`    | Web browser for desktop sessions             |
 
@@ -80,6 +81,7 @@ uv run ansible-playbook playbook.yml --tags "docker,desktop"
 | `recorder`              | CRD session recorder + CRD Recorder app (needs `desktop`) |
 | `terminal`              | Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr         |
 | `dotfiles`              | chezmoi + GitHub CLI                                 |
+| `deepseek-harness`      | Node.js 22, DeepSeek Harness, `dsh` / `dshc` helpers |
 | `vscode`                | VS Code + Python/Jupyter extensions                  |
 | `browser`               | Google Chrome                                        |
 | `projects`              | All boilerplate projects                             |
@@ -124,6 +126,21 @@ uv run ansible-playbook playbook.yml --tags desktop -e keyboard_layout=es   # ch
 ```
 
 The new layout applies from the next CRD session. To switch the current session right away, run `setxkbmap es` in a terminal inside the desktop.
+
+## DeepSeek Harness
+
+The `deepseek-harness` tag installs [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`) and points it at the LiteLLM gateway (`litellm_base_url`, default `https://litellm.joor.net/v1`) with the model `dsh_model` (default `course-chat`). Pass your virtual key once; it is stored in `~/deepseek-harness/.dsh/.env` (mode 600) and never logged:
+
+```bash
+uv run ansible-playbook playbook.yml --tags deepseek-harness -e litellm_api_key=sk-...
+```
+
+On the machine:
+
+- `dsh -y` — web UI in the current folder (`http://127.0.0.1:3080/?token=…`, open it in the desktop's Chrome). Conversations are grouped by folder (workspace).
+- `dshc "message"` — headless, multi-round conversation in the current folder (`dshc --new "..."` starts a new one).
+
+The agent's tools run in a `workspace-write` sandbox (only the workspace and `/tmp` are writable), so both helpers move tool caches (gh, uv, pip, npm) to `/tmp/dsh-cache-$USER`. A conversation open in the web UI is locked there: `dshc` cannot continue it until it is closed in the browser.
 
 ## Troubleshooting Chrome Remote Desktop
 
@@ -219,6 +236,7 @@ From `files/vscode/extensions.txt`:
 │   ├── micromamba.yml                           # Micromamba
 │   ├── desktop.yml                             # XFCE4 + Chrome Remote Desktop
 │   ├── terminal.yml                            # Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr
+│   ├── deepseek-harness.yml                    # Node.js 22 + DeepSeek Harness (dsh, dshc)
 │   ├── dotfiles.yml                            # chezmoi + GitHub CLI
 │   ├── vscode.yml                              # VS Code + extensions
 │   ├── browser.yml                             # Google Chrome
