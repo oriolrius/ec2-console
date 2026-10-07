@@ -1,0 +1,5 @@
+$ aws ec2 create-key-pair --key-name ec2-key --query 'KeyMaterial' --output text > ec2-key.pem && chmod 600 ec2-key.pem && ls -l ec2-key.pem && head -1 ec2-key.pem
+# started 2026-10-07T09:39:08Z
+
+An error occurred (InvalidKeyPair.Duplicate) when calling the CreateKeyPair operation: The keypair already exists
+# finished 2026-10-07T09:39:09Z, exit code 255

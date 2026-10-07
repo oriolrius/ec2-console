@@ -1,0 +1,19 @@
+$ git clone https://github.com/oriolrius/ec2-console.git && cd ec2-console && git log --oneline -1 && uv sync
+# started 2026-10-07T09:38:47Z
+Cloning into 'ec2-console'...
+18057c9 Merge pull request #22 from oriolrius/dependabot/github_actions/astral-sh/setup-uv-10.2.0
+Using CPython 3.14.3
+Creating virtual environment at: .venv
+Resolved 17 packages in 1ms
+Installed 10 packages in 1.04s
+ + ansible==13.5.0
+ + ansible-core==2.20.4
+ + cffi==2.0.0
+ + cryptography==46.0.6
+ + jinja2==3.1.6
+ + markupsafe==3.0.3
+ + packaging==26.0
+ + pycparser==3.0
+ + pyyaml==6.0.3
+ + resolvelib==1.2.1
+# finished 2026-10-07T09:38:49Z, exit code 0

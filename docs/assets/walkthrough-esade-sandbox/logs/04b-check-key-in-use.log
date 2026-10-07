@@ -1,0 +1,4 @@
+$ aws ec2 describe-instances --filters Name=key-name,Values=ec2-key Name=instance-state-name,Values=pending,running,stopping,stopped --query 'Reservations[].Instances[].InstanceId' --output text; ls -l ec2-key.pem
+# started 2026-10-07T09:39:15Z
+-rw-rw-r-- 1 student student 0 Oct  7 11:39 ec2-key.pem
+# finished 2026-10-07T09:39:16Z, exit code 0

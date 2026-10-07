@@ -1,0 +1,4 @@
+$ IP=$(terraform -chdir=terraform output -raw public_ip); echo $IP
+# started 2026-10-07T09:40:18Z
+3.253.68.181
+# finished 2026-10-07T09:40:19Z, exit code 0

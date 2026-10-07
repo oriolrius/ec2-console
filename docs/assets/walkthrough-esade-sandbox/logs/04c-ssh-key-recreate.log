@@ -1,0 +1,9 @@
+$ aws ec2 delete-key-pair --key-name ec2-key && aws ec2 create-key-pair --key-name ec2-key --query 'KeyMaterial' --output text > ec2-key.pem && chmod 600 ec2-key.pem && ls -l ec2-key.pem && head -1 ec2-key.pem
+# started 2026-10-07T09:39:20Z
+{
+    "Return": true,
+    "KeyPairId": "key-060621a0ad7ba946e"
+}
+-rw------- 1 student student 1679 Oct  7 11:39 ec2-key.pem
+-----BEGIN RSA PRIVATE KEY-----
+# finished 2026-10-07T09:39:21Z, exit code 0

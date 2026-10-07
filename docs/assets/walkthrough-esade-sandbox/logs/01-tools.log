@@ -1,0 +1,11 @@
+$ git --version && aws --version && terraform version && uv --version
+# started 2026-10-07T09:38:46Z
+git version 2.34.1
+aws-cli/1.42.46 Python/3.10.12 Linux/6.18.33.2-microsoft-standard-WSL2 botocore/1.42.32
+Terraform v1.16.1
+on linux_amd64
+
+Your version of Terraform is out of date! The latest version
+is 1.16.5. You can update by downloading from https://developer.hashicorp.com/terraform/install
+uv 0.10.9
+# finished 2026-10-07T09:38:47Z, exit code 0

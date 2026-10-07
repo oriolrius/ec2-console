@@ -1,0 +1,8 @@
+$ aws sts get-caller-identity
+# started 2026-10-07T09:39:01Z
+{
+    "UserId": "AROA27CHMKFEJVOFZYAUS:your.sandbox.username",
+    "Account": "753916465480",
+    "Arn": "arn:aws:sts::753916465480:assumed-role/AWSReservedSSO_esadeis_IsbUsersPS_9f1ca513af081798/your.sandbox.username"
+}
+# finished 2026-10-07T09:39:01Z, exit code 0
