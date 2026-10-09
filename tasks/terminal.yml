@@ -14,6 +14,7 @@
     state: directory
   loop:
     - "{{ ubuntu_home }}/.local/share/fonts/JetBrainsMono"
+    - "{{ ubuntu_home }}/.local/share/fonts/VictorMono"
     - "{{ ubuntu_home }}/.local/share/fonts/NerdFontsSymbols"
 
 - name: Download JetBrainsMono Nerd Font
@@ -23,6 +24,15 @@
       | tar xJ -C ~/.local/share/fonts/JetBrainsMono/
   args:
     creates: "{{ ubuntu_home }}/.local/share/fonts/JetBrainsMono/JetBrainsMonoNerdFontMono-Regular.ttf"
+
+- name: Download VictorMono Nerd Font
+  become_user: ubuntu
+  shell: |
+    curl -sL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/VictorMono.tar.xz \
+      | tar xJ -C ~/.local/share/fonts/VictorMono/
+  args:
+    creates: "{{ ubuntu_home }}/.local/share/fonts/VictorMono/VictorMonoNerdFontMono-Regular.ttf"
+  register: victormono_font
 
 - name: Download Symbols Nerd Font
   become_user: ubuntu
@@ -48,7 +58,7 @@
 - name: Refresh font cache
   become_user: ubuntu
   command: fc-cache -fv
-  when: fontconfig_changed.changed
+  when: fontconfig_changed.changed or victormono_font.changed
 
 - name: Create config directories
   become_user: ubuntu

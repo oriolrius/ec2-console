@@ -33,7 +33,7 @@ A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2
 | **oh-my-posh**                              | `terminal`   | Modern shell prompt with glyphs              |
 | **Zellij**                                  | `terminal`   | Terminal multiplexer                         |
 | **herdr**                                   | `terminal`   | Runtime for coding agents                    |
-| **Nerd Fonts**                              | `terminal`   | JetBrainsMono + Symbols fallback             |
+| **Nerd Fonts**                              | `terminal`   | VictorMono (Kitty default), JetBrainsMono + Symbols fallback |
 | **chezmoi + chezit + GitHub CLI**           | `dotfiles`   | Restore your personal configuration ([tutorial](docs/TUTORIAL-chezmoi.md)); chezit is a TUI for chezmoi |
 | **VS Code**                                 | `vscode`     | Code editor with Python/Jupyter extensions   |
 | **Google Chrome**                           | `browser`    | Web browser for desktop sessions             |
