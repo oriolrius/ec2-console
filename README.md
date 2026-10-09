@@ -34,7 +34,7 @@ A ready-to-use cloud development workstation on AWS. Spin up an Ubuntu 24.04 EC2
 | **Zellij**                                  | `terminal`   | Terminal multiplexer                         |
 | **herdr**                                   | `terminal`   | Runtime for coding agents                    |
 | **Nerd Fonts**                              | `terminal`   | JetBrainsMono + Symbols fallback             |
-| **chezmoi + GitHub CLI**                    | `dotfiles`   | Restore your personal configuration ([tutorial](docs/TUTORIAL-chezmoi.md)) |
+| **chezmoi + chezit + GitHub CLI**           | `dotfiles`   | Restore your personal configuration ([tutorial](docs/TUTORIAL-chezmoi.md)); chezit is a TUI for chezmoi |
 | **VS Code**                                 | `vscode`     | Code editor with Python/Jupyter extensions   |
 | **Google Chrome**                           | `browser`    | Web browser for desktop sessions             |
 
@@ -79,7 +79,7 @@ uv run ansible-playbook playbook.yml --tags "docker,desktop"
 | `desktop`               | XFCE4 desktop + Chrome Remote Desktop                |
 | `recorder`              | CRD session recorder + CRD Recorder app (needs `desktop`) |
 | `terminal`              | Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr         |
-| `dotfiles`              | chezmoi + GitHub CLI                                 |
+| `dotfiles`              | chezmoi, chezit, GitHub CLI                          |
 | `vscode`                | VS Code + Python/Jupyter extensions                  |
 | `browser`               | Google Chrome                                        |
 | `projects`              | All boilerplate projects                             |
@@ -219,7 +219,7 @@ From `files/vscode/extensions.txt`:
 │   ├── micromamba.yml                           # Micromamba
 │   ├── desktop.yml                             # XFCE4 + Chrome Remote Desktop
 │   ├── terminal.yml                            # Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr
-│   ├── dotfiles.yml                            # chezmoi + GitHub CLI
+│   ├── dotfiles.yml                            # chezmoi, chezit, GitHub CLI
 │   ├── vscode.yml                              # VS Code + extensions
 │   ├── browser.yml                             # Google Chrome
 │   ├── project-jupyterlab-uv.yml               # JupyterLab + UV boilerplate
