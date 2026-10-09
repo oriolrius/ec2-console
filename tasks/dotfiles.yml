@@ -1,5 +1,5 @@
 ---
-# chezmoi (dotfiles manager) + GitHub CLI.
+# chezmoi (dotfiles manager) + chezit (its TUI) + GitHub CLI.
 # gh authenticates the VM to GitHub so chezmoi can clone a private dotfiles
 # repo. Nothing is applied automatically — see docs/TUTORIAL-chezmoi.md.
 
@@ -7,6 +7,19 @@
   shell: sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin
   args:
     creates: /usr/local/bin/chezmoi
+
+# Release assets carry the version in their name (chezit_0.4.0_linux_amd64.tar.gz),
+# so resolve the latest tag from the releases/latest redirect first.
+- name: Install chezit (TUI for chezmoi)
+  shell: |
+    set -eo pipefail
+    tag=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/daptify14/chezit/releases/latest)
+    tag=${tag##*/}
+    curl -fsSL "https://github.com/daptify14/chezit/releases/download/${tag}/chezit_${tag#v}_linux_amd64.tar.gz" \
+      | tar xz -C /usr/local/bin chezit
+  args:
+    executable: /bin/bash
+    creates: /usr/local/bin/chezit
 
 - name: Add GitHub CLI signing key
   get_url:

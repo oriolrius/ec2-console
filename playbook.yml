@@ -67,7 +67,7 @@
       tags: [terminal]
       import_tasks: tasks/terminal.yml
 
-    - name: Dotfiles (chezmoi + GitHub CLI)
+    - name: Dotfiles (chezmoi + chezit + GitHub CLI)
       tags: [dotfiles]
       import_tasks: tasks/dotfiles.yml
 
