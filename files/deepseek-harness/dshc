@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# dshc — multi-round DeepSeek Harness conversations in the current folder.
+#   dshc "message"                 continue this folder's conversation (or start one)
+#   dshc --new "message"           start a new conversation
+#   dshc -s lab-a [--new] "msg"    a named conversation (several per folder)
+# The session id is kept in ./.dsh-session[-NAME] (dsh groups sessions by folder,
+# and the web UI shows them under that folder's workspace).
+set -euo pipefail
+export DSH_HOME="${DSH_HOME:-$HOME/deepseek-harness/.dsh}"
+set -a; . "$DSH_HOME/.env"; set +a
+# The agent's tools run in a workspace-write sandbox: only the workspace and /tmp
+# are writable, so tool caches (gh, uv, pip, npm) must live under /tmp.
+export XDG_CACHE_HOME="/tmp/dsh-cache-$USER" npm_config_cache="/tmp/dsh-cache-$USER/npm"
+state=.dsh-session new=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -s|--session) state=".dsh-session-$2"; shift 2 ;;
+    --new) new=1; shift ;;
+    *) break ;;
+  esac
+done
+[ "$new" = 1 ] && rm -f "$state"
+args=(headless --json)
+[ -s "$state" ] && args+=(--session-id "$(cat "$state")")
+command dsh "${args[@]}" "$*" 2>/dev/null | STATE="$state" python3 -u -c '
+import json, os, sys
+for line in sys.stdin:
+    try:
+        e = json.loads(line)
+    except ValueError:
+        continue
+    t = e.get("type", "")
+    if t == "session":
+        sid = e["sessionId"]
+        open(os.environ["STATE"], "w").write(sid)
+        print("[" + sid[:24] + "…]", flush=True)
+    elif t == "text":
+        print(e["text"], end="", flush=True)
+    elif t == "final":
+        print(flush=True)
+    elif "tool" in t:
+        print(f"\n[{t}] " + json.dumps({k: v for k, v in e.items() if k != "type"})[:220], flush=True)
+'

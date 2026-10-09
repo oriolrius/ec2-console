@@ -1,0 +1,112 @@
+---
+# DeepSeek Harness (dsh) wired to a LiteLLM gateway (default litellm.joor.net).
+# The model is reached through the gateway; the key comes only from
+# -e litellm_api_key=... (mode 600, never logged); without it an existing key
+# file is left untouched.
+# Usage: `dsh -y` (web UI), `dshc "message"` (multi-round headless chat).
+
+- name: Add NodeSource signing key
+  get_url:
+    url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+    dest: /etc/apt/keyrings/nodesource.asc
+    mode: '0644'
+
+# Same file and format (deb822) that NodeSource's own setup script writes, so a
+# machine set up by hand ends up with one repository definition, not two.
+- name: Add NodeSource Node.js {{ nodejs_major }} repository
+  copy:
+    dest: /etc/apt/sources.list.d/nodesource.sources
+    content: |
+      Types: deb
+      URIs: https://deb.nodesource.com/node_{{ nodejs_major }}.x
+      Suites: nodistro
+      Components: main
+      Architectures: amd64
+      Signed-By: /etc/apt/keyrings/nodesource.asc
+    mode: '0644'
+
+- name: Install Node.js
+  apt:
+    name: nodejs
+    state: present
+    update_cache: true
+
+- name: Install DeepSeek Harness (dsh)
+  npm:
+    name: "@deepseek-ai/dsh"
+    version: "{{ omit if dsh_version == 'latest' else dsh_version }}"
+    global: true
+    state: "{{ 'latest' if dsh_version == 'latest' else 'present' }}"
+
+- name: Create the DSH_HOME directory
+  become_user: ubuntu
+  file:
+    path: "{{ dsh_home }}"
+    state: directory
+    mode: '0700'
+
+- name: Configure the gateway provider and default model
+  become_user: ubuntu
+  copy:
+    dest: "{{ dsh_home }}/cordis.patch.yml"
+    content: |
+      # Managed by Ansible (tasks/deepseek-harness.yml).
+      # The LiteLLM gateway as an OpenAI-compatible provider, made the default model.
+      - id: llm-pi-ai
+        config:
+          providers:
+            litellm:
+              apiKeyEnv: LITELLM_API_KEY
+              api: openai-completions
+              baseURL: {{ litellm_base_url }}
+              models:
+                - id: {{ dsh_model }}
+                  input: [text]
+      - id: agent-default-model
+        config:
+          provider: litellm
+          model: {{ dsh_model }}
+      # Web search through the same key (no separate DeepSeek API key)
+      - id: web-search-deepseek
+        config:
+          apiKeyEnv: LITELLM_API_KEY
+
+- name: Store the gateway key (only when litellm_api_key is given)
+  become_user: ubuntu
+  copy:
+    dest: "{{ dsh_home }}/.env"
+    content: "LITELLM_API_KEY={{ litellm_api_key }}\n"
+    mode: '0600'
+  no_log: true
+  when: litellm_api_key | default('') | length > 0
+
+- name: Install dshc (multi-round headless conversation helper)
+  copy:
+    src: files/deepseek-harness/dshc
+    dest: /usr/local/bin/dshc
+    mode: '0755'
+
+- name: Add the dsh shell function to bashrc
+  become_user: ubuntu
+  blockinfile:
+    path: "{{ ubuntu_home }}/.bashrc"
+    marker: "# {mark} deepseek-harness"
+    block: |
+      export DSH_HOME="{{ dsh_home }}"
+      # `dsh` or `dsh -y`: web UI of the "default" profile (or the shipped "web"
+      # one) in the current folder; any other arguments go to the real dsh.
+      # Tool caches go to /tmp: the agent's sandbox can only write there and
+      # in the workspace.
+      dsh() {
+        (
+          set -a; . "$DSH_HOME/.env"; set +a
+          export XDG_CACHE_HOME="/tmp/dsh-cache-$USER" npm_config_cache="/tmp/dsh-cache-$USER/npm"
+          if [ $# -eq 0 ] || [ "$1" = "-y" ]; then
+            [ "${1:-}" = "-y" ] && shift
+            p=web; [ -d "$DSH_HOME/profiles/default" ] && p=default
+            command dsh "$p" --no-open "$@"
+          else
+            command dsh "$@"
+          fi
+        )
+      }

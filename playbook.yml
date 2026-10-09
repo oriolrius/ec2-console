@@ -7,6 +7,14 @@
     # Keyboard layout of the Chrome Remote Desktop session (setxkbmap name):
     # us, es, fr, de, gb, ... Override with: -e keyboard_layout=es
     keyboard_layout: us
+    # DeepSeek Harness (tasks/deepseek-harness.yml). The key is NOT a default:
+    # pass -e litellm_api_key=sk-... once (stored in dsh_home/.env, mode 600).
+    nodejs_major: 22
+    dsh_version: latest
+    dsh_home: "{{ ubuntu_home }}/deepseek-harness/.dsh"
+    litellm_base_url: https://litellm.joor.net/v1
+    # Course keys allow the "course-chat" alias (nan.builders DeepSeek V4 Flash).
+    dsh_model: course-chat
     # CRD session recorder (tasks/recorder.yml)
     crd_recorder_user: ubuntu
     crd_recorder_dir: "{{ ubuntu_home }}/recordings"
@@ -62,6 +70,10 @@
     - name: Dotfiles (chezmoi + chezit + GitHub CLI)
       tags: [dotfiles]
       import_tasks: tasks/dotfiles.yml
+
+    - name: DeepSeek Harness (dsh) through the LiteLLM gateway
+      tags: [deepseek-harness]
+      import_tasks: tasks/deepseek-harness.yml
 
     - name: Visual Studio Code
       tags: [vscode]
