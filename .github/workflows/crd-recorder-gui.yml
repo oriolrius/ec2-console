@@ -62,7 +62,7 @@ jobs:
           mkdir -p dist
           go build -ldflags "-s -w -X main.version=${VERSION}" -o dist/crd-recorder-gui-linux-amd64 .
           cd dist && sha256sum crd-recorder-gui-linux-amd64 > crd-recorder-gui-linux-amd64.sha256
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: crd-recorder-gui-linux-amd64
           path: crd-recorder-gui/dist/
