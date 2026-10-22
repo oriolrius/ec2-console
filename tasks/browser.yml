@@ -24,3 +24,106 @@
   apt:
     name: chromium-browser
     state: absent
+
+# --- Quiet Chrome (chrome_quiet_policies): no password manager / save-password
+# prompt, no default-browser question, no promotional or welcome tabs, no Privacy
+# Sandbox prompt; Google as the default search engine (this also skips the
+# EU "Choose your search engine" screen); and the first-run screen is skipped.
+- name: Chrome policies folder
+  file:
+    path: /etc/opt/chrome/policies/managed
+    state: directory
+    mode: '0755'
+  when: chrome_quiet_policies | bool
+
+- name: Chrome managed policies
+  copy:
+    dest: /etc/opt/chrome/policies/managed/ec2-console.json
+    content: |
+      {
+        "PasswordManagerEnabled": false,
+        "PasswordLeakDetectionEnabled": false,
+        "AutofillAddressEnabled": false,
+        "AutofillCreditCardEnabled": false,
+        "DefaultBrowserSettingEnabled": false,
+        "PromotionalTabsEnabled": false,
+        "MetricsReportingEnabled": false,
+        "PrivacySandboxPromptEnabled": false,
+        "DefaultSearchProviderEnabled": true,
+        "DefaultSearchProviderName": "Google",
+        "DefaultSearchProviderKeyword": "google.com",
+        "DefaultSearchProviderSearchURL": "https://www.google.com/search?q={searchTerms}",
+        "DefaultSearchProviderSuggestURL": "https://www.google.com/complete/search?output=chrome&q={searchTerms}"
+      }
+    mode: '0644'
+  when: chrome_quiet_policies | bool
+
+- name: Remove Chrome managed policies
+  file:
+    path: /etc/opt/chrome/policies/managed/ec2-console.json
+    state: absent
+  when: not (chrome_quiet_policies | bool)
+
+- name: Chrome profile folders (default and CDP)
+  become_user: ubuntu
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0700'
+  loop:
+    - "{{ ubuntu_home }}/.config/google-chrome"
+    - "{{ ubuntu_home }}/.config/google-chrome-cdp"
+  when: chrome_quiet_policies | bool
+
+- name: Skip the Chrome first-run screen (both profiles)
+  become_user: ubuntu
+  copy:
+    dest: "{{ item }}/First Run"
+    content: ""
+    force: false
+  loop:
+    - "{{ ubuntu_home }}/.config/google-chrome"
+    - "{{ ubuntu_home }}/.config/google-chrome-cdp"
+  when: chrome_quiet_policies | bool
+
+# --- Desktop Chrome with CDP (chrome_cdp_enabled): DevTools protocol on
+# 127.0.0.1:chrome_cdp_port, reachable only from the VM or through an SSH
+# tunnel. Chrome >= 136 refuses remote debugging on its default profile, so this
+# Chrome uses a separate one (~/.config/google-chrome-cdp). The wrapper covers
+# launches by name (dock, terminal); the .desktop override covers the menu and
+# links opened by other programs (/usr/local/share wins over /usr/share).
+- name: Chrome CDP wrappers
+  copy:
+    dest: "/usr/local/bin/{{ item }}"
+    content: |
+      #!/bin/sh
+      # ec2-console: desktop Chrome with CDP on 127.0.0.1:{{ chrome_cdp_port }} (chrome_cdp_enabled).
+      exec /usr/bin/google-chrome-stable --user-data-dir="$HOME/.config/google-chrome-cdp" \
+        --remote-debugging-port={{ chrome_cdp_port }} --remote-allow-origins=* "$@"
+    mode: '0755'
+  loop: [google-chrome-stable, google-chrome]
+  when: chrome_cdp_enabled | bool
+
+- name: Chrome CDP desktop entry (menu and default browser)
+  shell: |
+    set -e
+    sed 's#/usr/bin/google-chrome-stable#/usr/local/bin/google-chrome-stable#g' \
+      /usr/share/applications/google-chrome.desktop > /tmp/ec2c-google-chrome.desktop
+    if ! cmp -s /tmp/ec2c-google-chrome.desktop /usr/local/share/applications/google-chrome.desktop; then
+      install -D -m 0644 /tmp/ec2c-google-chrome.desktop /usr/local/share/applications/google-chrome.desktop
+      echo CHANGED
+    fi
+    rm -f /tmp/ec2c-google-chrome.desktop
+  register: chrome_cdp_desktop
+  changed_when: "'CHANGED' in chrome_cdp_desktop.stdout"
+  when: chrome_cdp_enabled | bool
+
+- name: Remove Chrome CDP wrappers and desktop entry
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /usr/local/bin/google-chrome-stable
+    - /usr/local/bin/google-chrome
+    - /usr/local/share/applications/google-chrome.desktop
+  when: not (chrome_cdp_enabled | bool)
