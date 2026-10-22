@@ -1,0 +1,18 @@
+# Personal settings for YOUR ec2-console. Copy to local.yml (git-ignored) and
+# edit; the playbook loads it automatically, so you don't repeat -e options.
+# Values here override the defaults in playbook.yml; -e on the command line
+# still wins. Remove any line you don't need.
+
+# Keyboard of the Chrome Remote Desktop session (setxkbmap layout name)
+keyboard_layout: es
+
+# DeepSeek Harness model behind the LiteLLM gateway (your key must allow it)
+dsh_model: course-chat
+
+# Desktop Chrome: CDP on 127.0.0.1:9222 (reach it through an SSH tunnel)
+chrome_cdp_enabled: false
+
+# Stop the machine after this many minutes without activity
+idle_stop_minutes: 60
+
+# Never put secrets here (e.g. litellm_api_key): pass them once with -e.

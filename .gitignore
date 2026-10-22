@@ -20,3 +20,6 @@ terraform/*.tfstate.*
 
 # Local builds of the CRD Recorder app
 crd-recorder-gui/dist/
+
+# Personal Ansible settings (see local.yml.example)
+local.yml

@@ -61,6 +61,10 @@ Pick one of the two step-by-step runbooks. Both create the same machine and then
 
 To keep your personal configuration (shell, git, editor settings) across machines, follow [docs/TUTORIAL-chezmoi.md](docs/TUTORIAL-chezmoi.md): a private `ec2-console-config` repository managed with chezmoi, restored on a new machine with `gh auth login` and `chezmoi init --apply`.
 
+## Personal settings (local.yml)
+
+Copy `local.yml.example` to `local.yml` (git-ignored) and set your own values once, for example `keyboard_layout: es`, `dsh_model`, `chrome_cdp_enabled: true` or `idle_stop_minutes`. The playbook loads it automatically, so every later run keeps your choices without repeating `-e`; values given with `-e` still win. Never put secrets in it: pass `litellm_api_key` once with `-e`.
+
 ## Ansible tags
 
 The runbooks install everything. To (re)install only some components, pass tags. The host IP is found automatically by [`scripts/host-ip.sh`](scripts/host-ip.sh) (Terraform output, else the `ec2-console` CloudFormation stack); set `JUPYTER_IP=<public-ip>` to target another machine.
@@ -254,6 +258,7 @@ From `files/vscode/extensions.txt`:
 ├── dbai/                                       # Separate DBAI course path (see dbai/README.md)
 ├── playbook.yml                                # Main playbook (imports tasks/)
 ├── ansible.cfg
+├── local.yml.example                           # Personal settings template (copy to local.yml)
 ├── inventory.yml                               # Host IP via scripts/host-ip.sh
 ├── scripts/resume.sh                           # Start a stopped machine, print the new IP
 ├── scripts/host-ip.sh                          # JUPYTER_IP, else Terraform output, else CF stack
