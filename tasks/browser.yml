@@ -27,7 +27,8 @@
 
 # --- Quiet Chrome (chrome_quiet_policies): no password manager / save-password
 # prompt, no default-browser question, no promotional or welcome tabs, no Privacy
-# Sandbox prompt; and the first-run screen is skipped.
+# Sandbox prompt; Google as the default search engine (this also skips the
+# EU "Choose your search engine" screen); and the first-run screen is skipped.
 - name: Chrome policies folder
   file:
     path: /etc/opt/chrome/policies/managed
@@ -47,7 +48,12 @@
         "DefaultBrowserSettingEnabled": false,
         "PromotionalTabsEnabled": false,
         "MetricsReportingEnabled": false,
-        "PrivacySandboxPromptEnabled": false
+        "PrivacySandboxPromptEnabled": false,
+        "DefaultSearchProviderEnabled": true,
+        "DefaultSearchProviderName": "Google",
+        "DefaultSearchProviderKeyword": "google.com",
+        "DefaultSearchProviderSearchURL": "https://www.google.com/search?q={searchTerms}",
+        "DefaultSearchProviderSuggestURL": "https://www.google.com/complete/search?output=chrome&q={searchTerms}"
       }
     mode: '0644'
   when: chrome_quiet_policies | bool

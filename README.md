@@ -144,7 +144,7 @@ The agent's tools run in a `workspace-write` sandbox (only the workspace and `/t
 
 ## Desktop Chrome: quiet policies and CDP
 
-The `browser` tag installs Google Chrome and, by default (`chrome_quiet_policies: true`), managed policies in `/etc/opt/chrome/policies/managed/ec2-console.json`: no password manager or "save password" prompt, no autofill, no default-browser question, no promotional tabs, no metrics and no Privacy Sandbox prompt. The first-run screen is skipped too. Check them in `chrome://policy`.
+The `browser` tag installs Google Chrome and, by default (`chrome_quiet_policies: true`), managed policies in `/etc/opt/chrome/policies/managed/ec2-console.json`: no password manager or "save password" prompt, no autofill, no default-browser question, no promotional tabs, no metrics and no Privacy Sandbox prompt, and **Google as the default search engine**, which also skips the EU "Choose your search engine" screen. The first-run screen is skipped too. Check them in `chrome://policy`.
 
 With `chrome_cdp_enabled: true` the desktop Chrome also exposes the Chrome DevTools Protocol on **`127.0.0.1:9222`** (`chrome_cdp_port`), only inside the VM. Chrome ≥ 136 refuses remote debugging on its default profile, so this Chrome uses its own profile, `~/.config/google-chrome-cdp`; logins from the default profile are not shared. A wrapper in `/usr/local/bin` and an override of `google-chrome.desktop` in `/usr/local/share/applications` make the dock, the menu and links opened by other programs all start it with CDP.
 
