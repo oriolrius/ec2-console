@@ -7,6 +7,12 @@
     # Keyboard layout of the Chrome Remote Desktop session (setxkbmap name):
     # us, es, fr, de, gb, ... Override with: -e keyboard_layout=es
     keyboard_layout: us
+    # Desktop Chrome (tasks/browser.yml): quiet policies (no save-password,
+    # default-browser, promo or first-run prompts) and optional CDP on
+    # 127.0.0.1:chrome_cdp_port with its own profile (~/.config/google-chrome-cdp).
+    chrome_quiet_policies: true
+    chrome_cdp_enabled: false
+    chrome_cdp_port: 9222
     # Auto-stop when idle (tasks/idle-stop.yml): no desktop or terminal input for
     # idle_stop_minutes and a 5-minute load below idle_stop_max_load -> save
     # chezmoi and stop the instance. Resume with scripts/resume.sh.
