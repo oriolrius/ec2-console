@@ -27,6 +27,12 @@
     litellm_base_url: https://litellm.joor.net/v1
     # Course keys allow the "course-chat" alias (nan.builders DeepSeek V4 Flash).
     dsh_model: course-chat
+    # DeepSeek Harness web UI fonts (ui-theme plugin). Ranges: text 10-22,
+    # code 10-16, terminal 10-20. Default family = the Kitty/shell font.
+    dsh_font_size: 18
+    dsh_code_font_size: 16
+    dsh_terminal_font_size: 18
+    dsh_font_family: '"JetBrainsMono Nerd Font Mono", monospace'
     # CRD session recorder (tasks/recorder.yml)
     crd_recorder_user: ubuntu
     crd_recorder_dir: "{{ ubuntu_home }}/recordings"
