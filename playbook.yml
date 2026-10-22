@@ -13,6 +13,12 @@
     chrome_quiet_policies: true
     chrome_cdp_enabled: false
     chrome_cdp_port: 9222
+    # Auto-stop when idle (tasks/idle-stop.yml): no desktop or terminal input for
+    # idle_stop_minutes and a 5-minute load below idle_stop_max_load -> save
+    # chezmoi and stop the instance. Resume with scripts/resume.sh.
+    idle_stop_enabled: true
+    idle_stop_minutes: 60
+    idle_stop_max_load: "1.0"
     # DeepSeek Harness (tasks/deepseek-harness.yml). The key is NOT a default:
     # pass -e litellm_api_key=sk-... once (stored in dsh_home/.env, mode 600).
     nodejs_major: 22
@@ -80,6 +86,10 @@
     - name: DeepSeek Harness (dsh) through the LiteLLM gateway
       tags: [deepseek-harness]
       import_tasks: tasks/deepseek-harness.yml
+
+    - name: Auto-stop when idle (saves chezmoi first)
+      tags: [idle-stop]
+      import_tasks: tasks/idle-stop.yml
 
     - name: Visual Studio Code
       tags: [vscode]

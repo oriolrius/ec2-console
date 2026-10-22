@@ -124,6 +124,9 @@ resource "aws_instance" "this" {
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.this.id]
 
+  # A shutdown from inside (idle-stop) stops the instance; it never terminates it.
+  instance_initiated_shutdown_behavior = "stop"
+
   root_block_device {
     volume_size = 25
     volume_type = "gp3"

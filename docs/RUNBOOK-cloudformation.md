@@ -156,6 +156,8 @@ If it is still offline, run `sudo reboot` and wait 30 seconds.
 
 A running machine costs money every hour, and a stopped one almost nothing.
 
+**It also stops by itself** after 1 hour without activity (mouse/keyboard in the desktop or typing in a terminal), after saving your chezmoi configuration. To continue, run `scripts/resume.sh`: it starts the machine and prints its new IP.
+
 ```bash
 aws ec2 stop-instances  --instance-ids $ID    # stop
 aws ec2 start-instances --instance-ids $ID    # start again later

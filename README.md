@@ -82,6 +82,7 @@ uv run ansible-playbook playbook.yml --tags "docker,desktop"
 | `terminal`              | Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr         |
 | `dotfiles`              | chezmoi, chezit, GitHub CLI                          |
 | `deepseek-harness`      | Node.js 22, DeepSeek Harness, `dsh` / `dshc` helpers |
+| `idle-stop`             | Stop the machine after 1 h idle (saves chezmoi first) |
 | `vscode`                | VS Code + Python/Jupyter extensions                  |
 | `browser`               | Google Chrome, quiet policies, optional CDP          |
 | `projects`              | All boilerplate projects                             |
@@ -155,6 +156,18 @@ curl -s http://127.0.0.1:9222/json/version                      # Chrome must be
 ```
 
 CDP gives full control of that browser: keep it on loopback and reach it only through SSH.
+## Auto-stop when idle
+
+The `idle-stop` tag installs a systemd timer that checks every 5 minutes. If there has been no input on the Chrome Remote Desktop session (`xprintidle`) or on any terminal (SSH, tmux, herdr) for `idle_stop_minutes` (default 60), it saves your chezmoi configuration (`re-add`, commit, push) and shuts the machine down. A shutdown from inside **stops** the instance: the disk is kept, and nothing is terminated. A busy machine (5-minute load above `idle_stop_max_load`, default 1.0) is never stopped.
+
+```bash
+sudo /usr/local/sbin/idle-stop --dry-run    # what it measures and would do
+sudo systemctl stop idle-stop.timer         # pause it (e.g. long unattended work)
+uv run ansible-playbook playbook.yml --tags idle-stop -e idle_stop_minutes=120   # change the limit
+uv run ansible-playbook playbook.yml --tags idle-stop -e idle_stop_enabled=false # turn it off
+```
+
+Commands sent over SSH without a terminal (`ssh host cmd`) do not count as activity. To continue after a stop, run `scripts/resume.sh` on your laptop (it starts the instance and prints the new public IP).
 
 ## Troubleshooting Chrome Remote Desktop
 
@@ -240,6 +253,7 @@ From `files/vscode/extensions.txt`:
 ├── playbook.yml                                # Main playbook (imports tasks/)
 ├── ansible.cfg
 ├── inventory.yml                               # Host IP via scripts/host-ip.sh
+├── scripts/resume.sh                           # Start a stopped machine, print the new IP
 ├── scripts/host-ip.sh                          # JUPYTER_IP, else Terraform output, else CF stack
 ├── tasks/
 │   ├── base.yml                                # System packages
