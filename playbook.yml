@@ -48,6 +48,14 @@
       https://github.com/oriolrius/ec2-console/releases/{{ 'latest/download' if crd_recorder_gui_version == 'latest'
       else 'download/' ~ crd_recorder_gui_version }}/crd-recorder-gui-linux-amd64
 
+  # Personal settings: local.yml next to this playbook (git-ignored; copy
+  # local.yml.example). Its values override the defaults above; -e still wins.
+  pre_tasks:
+    - name: Load personal settings (local.yml) if present
+      include_vars: "{{ playbook_dir }}/local.yml"
+      when: lookup('ansible.builtin.fileglob', playbook_dir ~ '/local.yml') | length > 0
+      tags: [always]
+
   tasks:
     - name: System baseline
       tags: [base, always]
