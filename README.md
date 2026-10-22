@@ -83,7 +83,7 @@ uv run ansible-playbook playbook.yml --tags "docker,desktop"
 | `dotfiles`              | chezmoi, chezit, GitHub CLI                          |
 | `deepseek-harness`      | Node.js 22, DeepSeek Harness, `dsh` / `dshc` helpers |
 | `vscode`                | VS Code + Python/Jupyter extensions                  |
-| `browser`               | Google Chrome                                        |
+| `browser`               | Google Chrome, quiet policies, optional CDP          |
 | `projects`              | All boilerplate projects                             |
 | `jupyterlab-uv`         | JupyterLab UV project only                           |
 | `jupyterlab-micromamba` | JupyterLab Micromamba project only                   |
@@ -141,6 +141,20 @@ On the machine:
 - `dshc "message"` — headless, multi-round conversation in the current folder (`dshc --new "..."` starts a new one; `dshc -s lab-a "..."` keeps several named conversations in one folder).
 
 The agent's tools run in a `workspace-write` sandbox (only the workspace and `/tmp` are writable), so both helpers move tool caches (gh, uv, pip, npm) to `/tmp/dsh-cache-$USER`. A conversation open in the web UI is locked there: `dshc` cannot continue it until it is closed in the browser.
+
+## Desktop Chrome: quiet policies and CDP
+
+The `browser` tag installs Google Chrome and, by default (`chrome_quiet_policies: true`), managed policies in `/etc/opt/chrome/policies/managed/ec2-console.json`: no password manager or "save password" prompt, no autofill, no default-browser question, no promotional tabs, no metrics and no Privacy Sandbox prompt. The first-run screen is skipped too. Check them in `chrome://policy`.
+
+With `chrome_cdp_enabled: true` the desktop Chrome also exposes the Chrome DevTools Protocol on **`127.0.0.1:9222`** (`chrome_cdp_port`), only inside the VM. Chrome ≥ 136 refuses remote debugging on its default profile, so this Chrome uses its own profile, `~/.config/google-chrome-cdp`; logins from the default profile are not shared. A wrapper in `/usr/local/bin` and an override of `google-chrome.desktop` in `/usr/local/share/applications` make the dock, the menu and links opened by other programs all start it with CDP.
+
+```bash
+uv run ansible-playbook playbook.yml --tags browser -e chrome_cdp_enabled=true
+ssh -i ec2-key.pem -L 9222:127.0.0.1:9222 ubuntu@<public-ip>   # then, on the laptop:
+curl -s http://127.0.0.1:9222/json/version                      # Chrome must be running in the desktop
+```
+
+CDP gives full control of that browser: keep it on loopback and reach it only through SSH.
 
 ## Troubleshooting Chrome Remote Desktop
 
