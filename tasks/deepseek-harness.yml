@@ -70,6 +70,15 @@
       - id: web-search-deepseek
         config:
           apiKeyEnv: LITELLM_API_KEY
+      # Web UI fonts: the shell's font and sizes readable in recordings
+      - id: ui-theme
+        config:
+          fontSize: {{ dsh_font_size }}
+          codeFontSize: {{ dsh_code_font_size }}
+          terminalFontSize: {{ dsh_terminal_font_size }}
+          textFontFamily: '{{ dsh_font_family }}'
+          codeFontFamily: '{{ dsh_font_family }}'
+          terminalFontFamily: '{{ dsh_font_family }}'
 
 - name: Store the gateway key (only when litellm_api_key is given)
   become_user: ubuntu

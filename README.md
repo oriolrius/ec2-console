@@ -140,7 +140,9 @@ On the machine:
 - `dsh -y` — web UI in the current folder (`http://127.0.0.1:3080/?token=…`, open it in the desktop's Chrome). Conversations are grouped by folder (workspace).
 - `dshc "message"` — headless, multi-round conversation in the current folder (`dshc --new "..."` starts a new one; `dshc -s lab-a "..."` keeps several named conversations in one folder).
 
-The agent's tools run in a `workspace-write` sandbox (only the workspace and `/tmp` are writable), so both helpers move tool caches (gh, uv, pip, npm) to `/tmp/dsh-cache-$USER`. A conversation open in the web UI is locked there: `dshc` cannot continue it until it is closed in the browser.
+The web UI uses the shell font (`dsh_font_family`, default JetBrainsMono Nerd Font Mono) at sizes readable in recordings: `dsh_font_size` 18 (text), `dsh_code_font_size` 16 (code, maximum), `dsh_terminal_font_size` 18 (terminal); a running `dsh` picks them up after a restart.
+
+The agent’s tools run in a `workspace-write` sandbox (only the workspace and `/tmp` are writable), so both helpers move tool caches (gh, uv, pip, npm) to `/tmp/dsh-cache-$USER`. A conversation open in the web UI is locked there: `dshc` cannot continue it until it is closed in the browser.
 
 ## Troubleshooting Chrome Remote Desktop
 
