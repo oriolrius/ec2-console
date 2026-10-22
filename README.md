@@ -82,6 +82,7 @@ uv run ansible-playbook playbook.yml --tags "docker,desktop"
 | `terminal`              | Kitty, Nerd Fonts, oh-my-posh, Zellij, herdr         |
 | `dotfiles`              | chezmoi, chezit, GitHub CLI                          |
 | `deepseek-harness`      | Node.js 22, DeepSeek Harness, `dsh` / `dshc` helpers |
+| `idle-stop`             | Stop the machine after 1 h idle (saves chezmoi first) |
 | `vscode`                | VS Code + Python/Jupyter extensions                  |
 | `browser`               | Google Chrome                                        |
 | `projects`              | All boilerplate projects                             |
@@ -141,6 +142,19 @@ On the machine:
 - `dshc "message"` — headless, multi-round conversation in the current folder (`dshc --new "..."` starts a new one; `dshc -s lab-a "..."` keeps several named conversations in one folder).
 
 The agent's tools run in a `workspace-write` sandbox (only the workspace and `/tmp` are writable), so both helpers move tool caches (gh, uv, pip, npm) to `/tmp/dsh-cache-$USER`. A conversation open in the web UI is locked there: `dshc` cannot continue it until it is closed in the browser.
+
+## Auto-stop when idle
+
+The `idle-stop` tag installs a systemd timer that checks every 5 minutes. If there has been no input on the Chrome Remote Desktop session (`xprintidle`) or on any terminal (SSH, tmux, herdr) for `idle_stop_minutes` (default 60), it saves your chezmoi configuration (`re-add`, commit, push) and shuts the machine down. A shutdown from inside **stops** the instance: the disk is kept, and nothing is terminated. A busy machine (5-minute load above `idle_stop_max_load`, default 1.0) is never stopped.
+
+```bash
+sudo /usr/local/sbin/idle-stop --dry-run    # what it measures and would do
+sudo systemctl stop idle-stop.timer         # pause it (e.g. long unattended work)
+uv run ansible-playbook playbook.yml --tags idle-stop -e idle_stop_minutes=120   # change the limit
+uv run ansible-playbook playbook.yml --tags idle-stop -e idle_stop_enabled=false # turn it off
+```
+
+Commands sent over SSH without a terminal (`ssh host cmd`) do not count as activity. To continue after a stop, run `scripts/resume.sh` on your laptop (it starts the instance and prints the new public IP).
 
 ## Troubleshooting Chrome Remote Desktop
 
@@ -226,6 +240,7 @@ From `files/vscode/extensions.txt`:
 ├── playbook.yml                                # Main playbook (imports tasks/)
 ├── ansible.cfg
 ├── inventory.yml                               # Host IP via scripts/host-ip.sh
+├── scripts/resume.sh                           # Start a stopped machine, print the new IP
 ├── scripts/host-ip.sh                          # JUPYTER_IP, else Terraform output, else CF stack
 ├── tasks/
 │   ├── base.yml                                # System packages

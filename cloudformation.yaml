@@ -47,6 +47,7 @@ Resources:
       InstanceType: !Ref InstanceType
       ImageId: !Ref UbuntuAmi
       KeyName: !Ref KeyName
+      InstanceInitiatedShutdownBehavior: stop   # idle-stop shuts down -> stop, never terminate
       SecurityGroups:
         - !Ref SecurityGroup
       BlockDeviceMappings:

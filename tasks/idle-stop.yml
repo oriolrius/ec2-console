@@ -1,0 +1,49 @@
+---
+# Stop the instance after idle_stop_minutes without human activity, saving the
+# chezmoi configuration first. See files/idle-stop/idle-stop and README
+# "Auto-stop when idle". Resume from the laptop with scripts/resume.sh.
+
+- name: Install xprintidle (desktop idle time)
+  apt:
+    name: xprintidle
+    state: present
+
+- name: Install the idle-stop script
+  copy:
+    src: files/idle-stop/idle-stop
+    dest: /usr/local/sbin/idle-stop
+    mode: '0755'
+
+- name: Install the idle-stop service
+  copy:
+    dest: /etc/systemd/system/idle-stop.service
+    content: |
+      [Unit]
+      Description=Stop this instance when idle (saving chezmoi first)
+      [Service]
+      Type=oneshot
+      Environment=IDLE_STOP_MINUTES={{ idle_stop_minutes }}
+      Environment=IDLE_STOP_MAX_LOAD={{ idle_stop_max_load }}
+      Environment=IDLE_STOP_USER=ubuntu
+      ExecStart=/usr/local/sbin/idle-stop
+    mode: '0644'
+
+- name: Install the idle-stop timer (every 5 minutes)
+  copy:
+    dest: /etc/systemd/system/idle-stop.timer
+    content: |
+      [Unit]
+      Description=Check every 5 minutes whether this instance is idle
+      [Timer]
+      OnBootSec=10min
+      OnUnitActiveSec=5min
+      [Install]
+      WantedBy=timers.target
+    mode: '0644'
+
+- name: Enable or disable the idle-stop timer
+  systemd:
+    name: idle-stop.timer
+    daemon_reload: true
+    enabled: "{{ idle_stop_enabled | bool }}"
+    state: "{{ 'started' if idle_stop_enabled | bool else 'stopped' }}"

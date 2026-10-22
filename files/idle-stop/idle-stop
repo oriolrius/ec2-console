@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# idle-stop — stop this EC2 instance after a period with no human activity.
+# Activity = keyboard/mouse in the Chrome Remote Desktop session (xprintidle) or
+# input on any terminal (SSH, tmux, herdr: /dev/pts atime). A busy machine
+# (5-minute load above IDLE_STOP_MAX_LOAD) is never stopped. Before stopping it
+# saves the chezmoi configuration (re-add, commit, push). Shutting down from
+# inside stops the instance (InstanceInitiatedShutdownBehavior = stop): the disk
+# is kept, and no AWS credentials are needed here.
+#   idle-stop            check and act (run every 5 min by idle-stop.timer)
+#   idle-stop --dry-run  only report what it measures and would do
+set -uo pipefail
+IDLE_MINUTES="${IDLE_STOP_MINUTES:-60}"
+MAX_LOAD="${IDLE_STOP_MAX_LOAD:-1.0}"
+U="${IDLE_STOP_USER:-ubuntu}"
+DRY=0; [ "${1:-}" = "--dry-run" ] && DRY=1
+log() { echo "idle-stop: $*"; logger -t idle-stop "$*" 2>/dev/null || true; }
+
+now=$(date +%s); up=$(cut -d. -f1 /proc/uptime)
+# 1) desktop: input idle time of every X display owned by the user (CRD)
+x_idle=$up
+for d in $(ps -u "$U" -o args= | grep -oE '(Xvfb|Xorg) :[0-9]+' | grep -oE ':[0-9]+' | sort -u); do
+  ms=$(runuser -l "$U" -c "DISPLAY=$d xprintidle" 2>/dev/null) || continue
+  [ $((ms / 1000)) -lt "$x_idle" ] && x_idle=$((ms / 1000))
+done
+# 2) terminals: last input on any pseudo-terminal
+t_idle=$up
+for t in /dev/pts/[0-9]*; do
+  [ -e "$t" ] || continue
+  a=$(stat -c %X "$t"); [ $((now - a)) -lt "$t_idle" ] && t_idle=$((now - a))
+done
+idle=$(( x_idle < t_idle ? x_idle : t_idle ))
+load=$(cut -d' ' -f2 /proc/loadavg)
+log "idle ${idle}s (desktop ${x_idle}s, terminals ${t_idle}s), load5 ${load}, stop after ${IDLE_MINUTES} min"
+
+if awk -v l="$load" -v m="$MAX_LOAD" 'BEGIN { exit !(l > m) }'; then
+  log "busy (load5 > ${MAX_LOAD}): keep running"; exit 0
+fi
+[ "$idle" -lt $((IDLE_MINUTES * 60)) ] && exit 0
+[ "$DRY" = 1 ] && { log "dry run: would save chezmoi and stop now"; exit 0; }
+
+# Save the personal configuration first (best effort: a stop keeps the disk anyway).
+if runuser -l "$U" -c 'command -v chezmoi >/dev/null && [ -d "$(chezmoi source-path 2>/dev/null)/.git" ]'; then
+  if runuser -l "$U" -c 'chezmoi re-add && cd "$(chezmoi source-path)" && git add -A &&
+      { git diff --cached --quiet || git commit -qm "chore: auto-save before idle stop ($(hostname), $(date -u +%FT%TZ))"; } &&
+      git push -q'; then
+    log "chezmoi configuration saved and pushed"
+  else
+    log "chezmoi save FAILED (stopping anyway)"
+  fi
+fi
+wall "idle-stop: no activity for ${IDLE_MINUTES} min, stopping this machine now (start it again with scripts/resume.sh)" 2>/dev/null || true
+log "stopping the instance"
+systemctl poweroff
