@@ -3,6 +3,10 @@
 #
 # Difference from the CF template: it does not rely on a default VPC (course
 # sandbox accounts have none), so it creates a minimal public network.
+#
+# Static IP (default): the Elastic IP lives in its own state (./address) and
+# this root only associates it, so destroying this workspace keeps the IP.
+# Create ./address first, or set `static_ip = false` in terraform.tfvars.
 
 terraform {
   required_version = ">= 1.5"
@@ -43,6 +47,12 @@ variable "instance_type" {
     condition     = contains(["t3a.xlarge", "c6a.xlarge", "t3.xlarge", "c6i.xlarge", "m6a.xlarge"], var.instance_type)
     error_message = "instance_type must be one of t3a.xlarge, c6a.xlarge, t3.xlarge, c6i.xlarge, m6a.xlarge."
   }
+}
+
+variable "static_ip" {
+  description = "Associate the Elastic IP from ./address (same IP across stop/start and rebuilds). false = a new public IP on every start, no EIP cost."
+  type        = bool
+  default     = true
 }
 
 variable "ubuntu_ami" {
@@ -137,9 +147,42 @@ resource "aws_instance" "this" {
   depends_on = [aws_route_table_association.public]
 }
 
+# --- Static public IP (Elastic IP owned by ./address) -------------------------
+
+locals {
+  address_state     = "${path.module}/address/terraform.tfstate"
+  eip_allocation_id = var.static_ip ? try(data.terraform_remote_state.address[0].outputs.eip_allocation_id, null) : null
+  public_ip         = var.static_ip ? try(data.terraform_remote_state.address[0].outputs.public_ip, aws_instance.this.public_ip) : aws_instance.this.public_ip
+}
+
+# Read only if it exists; otherwise the precondition below explains what to do.
+data "terraform_remote_state" "address" {
+  count   = var.static_ip && fileexists(local.address_state) ? 1 : 0
+  backend = "local"
+  config  = { path = local.address_state }
+}
+
+resource "aws_eip_association" "this" {
+  count         = var.static_ip ? 1 : 0
+  allocation_id = local.eip_allocation_id
+  instance_id   = aws_instance.this.id
+
+  lifecycle {
+    precondition {
+      condition     = local.eip_allocation_id != null
+      error_message = "static_ip = true but there is no Elastic IP yet. Create it first: terraform -chdir=terraform/address init && terraform -chdir=terraform/address apply. Or set static_ip = false in terraform/terraform.tfvars."
+    }
+  }
+}
+
 output "public_ip" {
-  description = "Instance public IP address"
-  value       = aws_instance.this.public_ip
+  description = "Public IP address (the Elastic IP when static_ip = true)"
+  value       = local.public_ip
+}
+
+output "static_ip" {
+  description = "Whether the Elastic IP is associated"
+  value       = var.static_ip
 }
 
 output "instance_id" {
@@ -149,7 +192,7 @@ output "instance_id" {
 
 output "ssh_command" {
   description = "SSH into the instance"
-  value       = "ssh -i ec2-key.pem ubuntu@${aws_instance.this.public_ip}"
+  value       = "ssh -i ec2-key.pem ubuntu@${local.public_ip}"
 }
 
 output "ansible_command" {

@@ -1,0 +1,10 @@
+# Copy to terraform/terraform.tfvars (git-ignored) to change the defaults.
+
+# Elastic IP: the same public IP across stop/start and workspace rebuilds.
+# Needs terraform/address applied first. AWS bills it every hour, also while the
+# instance is stopped or destroyed, until you release it (terraform/address destroy).
+# false = a new public IP on every start, and no terraform/address.
+# static_ip = false
+
+# instance_type = "c6a.xlarge"
+# region        = "eu-west-1"   # if you change it, pass the same -var region=... to terraform/address

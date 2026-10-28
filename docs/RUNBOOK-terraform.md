@@ -72,17 +72,25 @@ Keep `ec2-key.pem` safe: it is the only way into your machine. Never share it or
 
 ## 5. Launch the machine
 
+The machine gets a **static public IP** (an AWS Elastic IP) by default, so its address never changes: not after a stop/start, and not after you destroy and recreate it. The static IP lives in its own Terraform state (`terraform/address`), separate from the machine (`terraform`), so you create it first:
+
 ```bash
+terraform -chdir=terraform/address init
+terraform -chdir=terraform/address apply        # the static IP, once
 terraform -chdir=terraform init
-terraform -chdir=terraform apply
+terraform -chdir=terraform apply                # the machine
 ```
 
-Type `yes` when it asks. After about a minute it prints `public_ip = "x.x.x.x"`. Save that IP in a variable:
+Type `yes` each time. After about a minute the second `apply` prints `public_ip = "x.x.x.x"`, the same IP the first one printed. Save it in a variable:
 
 ```bash
 IP=$(terraform -chdir=terraform output -raw public_ip)
 echo $IP
 ```
+
+> **Cost:** AWS bills every public IPv4 address, about 0.005 USD per hour. A normal public IP is only billed while the machine runs. The static IP is billed **all the time** until you release it (step 10): also while the machine is stopped or destroyed, that is about 3.60 USD per month. See [Amazon VPC pricing](https://aws.amazon.com/vpc/pricing/).
+>
+> **Don't want a static IP?** Skip `terraform/address`. Create `terraform/terraform.tfvars` with the line `static_ip = false` (see [`terraform.tfvars.example`](../terraform/terraform.tfvars.example)), then run only the two `terraform -chdir=terraform` commands. The machine then gets a new public IP on every start.
 
 ## 6. Install the software
 
@@ -140,7 +148,7 @@ If it is still offline, run `sudo reboot` and wait 30 seconds.
 
 A running machine costs money every hour, and a stopped one almost nothing.
 
-**It also stops by itself** after 1 hour without activity (mouse/keyboard in the desktop or typing in a terminal), after saving your chezmoi configuration. To continue, run `scripts/resume.sh`: it starts the machine and prints its new IP.
+**It also stops by itself** after 1 hour without activity (mouse/keyboard in the desktop or typing in a terminal), after saving your chezmoi configuration. To continue, run `scripts/resume.sh`: it starts the machine and prints its IP.
 
 ```bash
 ID=$(terraform -chdir=terraform output -raw instance_id)
@@ -148,21 +156,37 @@ aws ec2 stop-instances  --instance-ids $ID    # stop
 aws ec2 start-instances --instance-ids $ID    # start again later
 ```
 
-After a start, the **public IP changes**. Get the new one with:
+With the static IP (the default) the IP stays the same after a start. With `static_ip = false` the **public IP changes**. Get the new one with:
 
 ```bash
 terraform -chdir=terraform apply -refresh-only -auto-approve
 IP=$(terraform -chdir=terraform output -raw public_ip)
 ```
 
+Run the same `-refresh-only` command after you switch `static_ip` on or off on an existing machine.
+
 Chrome Remote Desktop keeps working after a stop/start. You don't need to set it up again.
 
 ## 10. Delete everything at the end
 
+Delete the machine first, then release the static IP:
+
 ```bash
-terraform -chdir=terraform destroy
+terraform -chdir=terraform destroy            # the machine: VM, disk, network
+terraform -chdir=terraform/address destroy    # the static IP (final cleanup)
 ```
 
-Type `yes`. This deletes the machine and **all files on it**, so copy anything you need first.
+Type `yes` each time. The first command deletes the machine and **all files on it**, so copy anything you need first. Its plan lists `aws_eip_association` but never `aws_eip`: the static IP is kept, and it is **still billed** until you run the second command. With `static_ip = false`, there is no second command.
 
-Don't delete the `terraform/terraform.tfstate` file while the machine exists. Terraform needs it to find and delete your machine.
+Don't delete `terraform/terraform.tfstate` or `terraform/address/terraform.tfstate` while the machine or the static IP exists. Terraform needs them to find and delete your resources.
+
+### Rebuild the machine and keep the IP
+
+To start from a clean machine with the same address, destroy and recreate only the machine:
+
+```bash
+terraform -chdir=terraform destroy     # plan: no aws_eip, the static IP is kept
+terraform -chdir=terraform apply       # a new VM, associated with the same static IP
+```
+
+Then repeat steps 6-8 on the new machine. SSH warns that the host key changed for that IP: remove the old entry with `ssh-keygen -R $IP`.
