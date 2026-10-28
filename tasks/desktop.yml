@@ -12,6 +12,8 @@
       - dbus-x11
       - x11-xserver-utils
       - xclip
+      - xdotool          # scripted pointer + keystrokes (desktop recordings)
+      - asciinema        # terminal session recordings
       - fonts-noto-color-emoji
     state: present
   environment:
