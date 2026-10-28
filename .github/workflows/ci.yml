@@ -50,14 +50,16 @@ jobs:
         with:
           terraform_version: "1.9.8"
       - name: terraform fmt (check)
-        run: terraform fmt -check -recursive dbai/terraform
+        run: terraform fmt -check -recursive dbai/terraform terraform
       - name: terraform validate (each root)
         run: |
           set -euo pipefail
           for root in \
             dbai/terraform/address \
             dbai/terraform/workspace \
-            dbai/terraform/examples/s6-student-root; do
+            dbai/terraform/examples/s6-student-root \
+            terraform \
+            terraform/address; do
             echo "== validating ${root} =="
             terraform -chdir="${root}" init -backend=false -input=false
             terraform -chdir="${root}" validate

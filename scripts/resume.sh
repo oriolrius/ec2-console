@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Start the (stopped) ec2-console again and print how to connect.
-# The public IP changes on every start. Chrome Remote Desktop needs no change.
+# With static_ip (default) the IP stays the same; with static_ip = false it
+# changes on every start. Chrome Remote Desktop needs no change.
 # Uses the Terraform state of this checkout, else the "ec2-console" CF stack.
 set -euo pipefail
 cd "$(dirname "$0")/.."

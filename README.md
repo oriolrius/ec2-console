@@ -59,6 +59,17 @@ Pick one of the two step-by-step runbooks. Both create the same machine and then
 | [docs/RUNBOOK-terraform.md](docs/RUNBOOK-terraform.md) | [`terraform/`](terraform/main.tf) | Recommended. Creates its own VPC, so it works in any account. |
 | [docs/RUNBOOK-cloudformation.md](docs/RUNBOOK-cloudformation.md) | [`cloudformation.yaml`](cloudformation.yaml) | No Terraform installed. Needs a default VPC. |
 
+### Static public IP (Terraform)
+
+By default the Terraform machine gets an **Elastic IP** that never changes, across stop/start and across a destroy + recreate of the machine. It lives in its own state root, [`terraform/address/`](terraform/address/main.tf); the machine root (`terraform/`) only associates it, so `terraform -chdir=terraform destroy` never releases it.
+
+- **Order:** create the address first (`terraform -chdir=terraform/address init && terraform -chdir=terraform/address apply`), then the machine (`terraform -chdir=terraform apply`).
+- **Final cleanup:** destroy the machine, then release the address with `terraform -chdir=terraform/address destroy`. This is a separate, explicit step.
+- **Cost:** AWS bills each public IPv4 address at about $0.005/hour. The Elastic IP is billed all the time until it is released, also while the machine is stopped or destroyed (about $3.60/month).
+- **Turn it off:** set `static_ip = false` in `terraform/terraform.tfvars` (see [`terraform.tfvars.example`](terraform/terraform.tfvars.example)) and skip `terraform/address`. The machine then gets a new public IP on every start, as before.
+
+The CloudFormation path has no static IP.
+
 To keep your personal configuration (shell, git, editor settings) across machines, follow [docs/TUTORIAL-chezmoi.md](docs/TUTORIAL-chezmoi.md): a private `ec2-console-config` repository managed with chezmoi, restored on a new machine with `gh auth login` and `chezmoi init --apply`.
 
 ## Personal settings (local.yml)
@@ -67,7 +78,7 @@ Copy `local.yml.example` to `local.yml` (git-ignored) and set your own values on
 
 ## Ansible tags
 
-The runbooks install everything. To (re)install only some components, pass tags. The host IP is found automatically by [`scripts/host-ip.sh`](scripts/host-ip.sh) (Terraform output, else the `ec2-console` CloudFormation stack); set `JUPYTER_IP=<public-ip>` to target another machine.
+The runbooks install everything. To (re)install only some components, pass tags. The host IP is found automatically by [`scripts/host-ip.sh`](scripts/host-ip.sh) (the Terraform instance, else the `ec2-console` CloudFormation stack); set `JUPYTER_IP=<public-ip>` to target another machine.
 
 ```bash
 uv run ansible-playbook playbook.yml --tags "docker,desktop"
@@ -173,7 +184,7 @@ uv run ansible-playbook playbook.yml --tags idle-stop -e idle_stop_minutes=120  
 uv run ansible-playbook playbook.yml --tags idle-stop -e idle_stop_enabled=false # turn it off
 ```
 
-Commands sent over SSH without a terminal (`ssh host cmd`) do not count as activity. To continue after a stop, run `scripts/resume.sh` on your laptop (it starts the instance and prints the new public IP).
+Commands sent over SSH without a terminal (`ssh host cmd`) do not count as activity. To continue after a stop, run `scripts/resume.sh` on your laptop (it starts the instance and prints its public IP).
 
 ## Troubleshooting Chrome Remote Desktop
 
@@ -251,7 +262,9 @@ From `files/vscode/extensions.txt`:
 ```
 .
 ├── cloudformation.yaml                         # EC2 + security group
-├── terraform/main.tf                           # Terraform equivalent (+ minimal VPC)
+├── terraform/main.tf                           # Terraform equivalent (+ minimal VPC, static_ip)
+├── terraform/address/main.tf                   # Static IP (Elastic IP), its own state
+├── terraform/terraform.tfvars.example          # Terraform settings template (static_ip, ...)
 ├── docs/RUNBOOK-terraform.md                   # Step-by-step guide: Terraform + Ansible + CRD
 ├── docs/RUNBOOK-cloudformation.md              # Step-by-step guide: CloudFormation + Ansible + CRD
 ├── docs/TUTORIAL-chezmoi.md                    # Keep/restore personal config with chezmoi
@@ -260,8 +273,8 @@ From `files/vscode/extensions.txt`:
 ├── ansible.cfg
 ├── local.yml.example                           # Personal settings template (copy to local.yml)
 ├── inventory.yml                               # Host IP via scripts/host-ip.sh
-├── scripts/resume.sh                           # Start a stopped machine, print the new IP
-├── scripts/host-ip.sh                          # JUPYTER_IP, else Terraform output, else CF stack
+├── scripts/resume.sh                           # Start a stopped machine, print its IP
+├── scripts/host-ip.sh                          # JUPYTER_IP, else Terraform instance, else CF stack
 ├── tasks/
 │   ├── base.yml                                # System packages
 │   ├── awscli.yml                              # AWS CLI v2
@@ -302,7 +315,7 @@ From `files/vscode/extensions.txt`:
 | c6i.xlarge           | Intel (fixed)     | 4    | 8 GB  | $0.1824 | $133.15        |
 | m6a.xlarge           | AMD (general)     | 4    | 16 GB | $0.1926 | $140.60        |
 
-Prices from the AWS Pricing API (September 2026), Linux, shared tenancy. The monthly figure is 730 hours. A stopped instance costs nothing for compute, but the 25 GB gp3 disk always adds about **$2.20/month** until the machine is deleted.
+Prices from the AWS Pricing API (September 2026), Linux, shared tenancy. The monthly figure is 730 hours. A stopped instance costs nothing for compute, but the 25 GB gp3 disk always adds about **$2.20/month** until the machine is deleted, and the static IP about **$3.60/month** until it is released (see [Static public IP](#static-public-ip-terraform)).
 
 Override: `terraform -chdir=terraform apply -var instance_type=c6a.xlarge` (Terraform) or add `ParameterKey=InstanceType,ParameterValue=c6a.xlarge` to `--parameters` (CloudFormation).
 

@@ -17,6 +17,10 @@ dbai/terraform/modules/**/.terraform.lock.hcl
 terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.*
+terraform/terraform.tfvars
+terraform/address/.terraform/
+terraform/address/*.tfstate
+terraform/address/*.tfstate.*
 
 # Local builds of the CRD Recorder app
 crd-recorder-gui/dist/
