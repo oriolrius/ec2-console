@@ -31,6 +31,7 @@ module "workspace" {
   app_ingress_cidrs          = var.app_ingress_cidrs
   root_volume_gb             = var.root_volume_gb
   web_ingress_cidrs          = var.web_ingress_cidrs
+  web_ingress_ports          = var.web_ingress_ports
   web_ingress_self           = var.web_ingress_self
   cost_tags                  = var.cost_tags
 }
@@ -118,6 +119,12 @@ variable "web_ingress_cidrs" {
   description = "Explicit CIDRs allowed on TCP 80 (S9 ingress)."
   type        = list(string)
   default     = []
+}
+
+variable "web_ingress_ports" {
+  description = "Selected course web ports; [80,443] for HTTPS plus redirect."
+  type        = set(number)
+  default     = [80]
 }
 
 variable "web_ingress_self" {
