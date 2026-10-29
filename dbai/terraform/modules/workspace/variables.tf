@@ -119,3 +119,9 @@ variable "web_ingress_self" {
   type        = bool
   default     = false
 }
+
+variable "user_data_replace_on_change" {
+  description = "Replace the instance when first-boot configuration changes. Enable for the deliberate S8 k3s transition; false preserves earlier profile adoption."
+  type        = bool
+  default     = false
+}
