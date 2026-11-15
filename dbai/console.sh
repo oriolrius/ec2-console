@@ -275,6 +275,55 @@ finally:
 PY
 }
 
+# Keep the manifest's instance record equal to the workspace STATE (doc-18 §3).
+# initialize/workspace-destroy/final-cleanup write the record themselves, but a
+# native `terraform destroy` / `terraform apply` in the adopted S6 student root
+# replaces the instance without passing through the console. Without this, stop,
+# start, diagnose, host-fingerprint, verify-host and recover keep addressing the
+# destroyed instance. The controller-owned local state is the source of truth:
+# its `instance_id` / `public_ip` outputs (both roots declare them) are copied
+# into the manifest when they differ; an empty state clears the record. Reads the
+# state file only (no AWS call, no Terraform run); a missing or unreadable state
+# leaves the manifest untouched. Never fatal.
+sync_instance_record() {
+  local env_id="$1" manifest tfstate
+  manifest="$(manifest_path "$env_id")"; tfstate="$(tfstate_path "$env_id")"
+  [ -f "$manifest" ] && [ -f "$tfstate" ] || return 0
+  MANIFEST="$manifest" TFSTATE="$tfstate" python3 - <<'PY' || true
+import json, os, sys, datetime
+mpath, spath = os.environ["MANIFEST"], os.environ["TFSTATE"]
+try:
+    m = json.load(open(mpath)); s = json.load(open(spath))
+except Exception:
+    sys.exit(0)
+if not isinstance(s, dict) or "resources" not in s:
+    sys.exit(0)
+outs = s.get("outputs") or {}
+def out(name):
+    v = (outs.get(name) or {}).get("value")
+    return v if isinstance(v, str) and v else None
+iid, ip = (out("instance_id"), out("public_ip")) if s.get("resources") else (None, None)
+old = m.get("instance_id")
+if iid == old:
+    sys.exit(0)
+m["instance_id"] = iid
+if iid is None:
+    m["connection"] = {"public_ip": None, "ssh": None}
+elif ip:
+    m["connection"] = {"public_ip": ip, "ssh": "ssh ubuntu@%s" % ip}
+m["updated_at"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+mask = os.umask(0o077)
+try:
+    with open(mpath, "w") as f:
+        json.dump(m, f, indent=2); f.write("\n")
+except OSError:
+    sys.exit(0)
+finally:
+    os.umask(mask)
+sys.stderr.write("[dbai] instance record refreshed from the workspace state: %s -> %s\n" % (old or "none", iid or "none"))
+PY
+}
+
 # Load a manifest by id and fail CLEARLY on missing/inconsistent identity
 # metadata — never silently fall back to a different environment (AC#5).
 verify_manifest() {
@@ -297,6 +346,8 @@ for req in ("aws_account","aws_region","active_root","backend_paths","bootstrap_
     if not m.get(req):
         sys.stderr.write(f"[dbai] ERROR: manifest missing required field {req!r}; inconsistent metadata.\n"); sys.exit(1)
 PY
+  # A verified manifest always names the instance that the state holds.
+  sync_instance_record "$env_id"
 }
 
 validate_prereqs() {

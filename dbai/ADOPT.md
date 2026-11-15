@@ -54,6 +54,25 @@ both controller operations (`console.sh plan …`) and the exported native comma
 (`console.sh terraform-cmd …`) run in the student root under the **same** state
 lock — so the console route and the native-Terraform route can never race.
 
+## After adoption: native applies and the instance record
+
+In the adopted root the student runs native `terraform destroy` / `terraform
+apply` (S6 Lab B). Those commands do not pass through the console, so the
+manifest cannot be written by them. Every console command that loads the
+manifest therefore first copies the `instance_id` and `public_ip` outputs of the
+workspace **state** into the manifest when they differ (an empty state clears the
+record) and logs `instance record refreshed from the workspace state: <old> ->
+<new>`. So `stop`, `start`, `diagnose`, `host-fingerprint`, `verify-host` and
+`recover` always address the instance that the state holds — including the S8
+`console.sh stop` of a workspace that was rebuilt natively in S6. The refresh
+reads the local state file only: no AWS call and no Terraform run.
+
+An environment changed from the student root **before** adoption is still
+adopted: the equivalence plan runs in the student root with its own
+`terraform.tfvars`, so it is zero-change there. Until adoption only the
+controller's own root drifts (`console.sh plan` exits 2 and would undo the
+change) — adopt right after the first zero-change plan, before any change.
+
 ## Origin / controller synchronization
 
 The student root is versioned coursework in `ai-workbench` (origin), while the

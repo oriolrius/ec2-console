@@ -15,6 +15,11 @@ read through AWS (not over the untrusted network):
 dbai/console.sh host-fingerprint <id>     # SHA256 fingerprints, tied to the instance id
 ```
 
+After a native `terraform apply` in the adopted S6 root the command names the
+new instance: the console refreshes its instance record from the workspace state
+first (see [ADOPT.md](./ADOPT.md)). The plain AWS form is
+`aws ec2 get-console-output --instance-id "$(terraform output -raw instance_id)" --latest --output text`.
+
 This is `aws ec2 get-console-output` under the hood — the same key material the
 VM generated at boot, delivered over your authenticated AWS session.
 
