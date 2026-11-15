@@ -23,8 +23,18 @@ key is always enrolled; the deploy and instructor keys enroll when their
 `*_public_key_path` input is supplied (they are `null` until their phase).
 
 ```bash
-# enroll the deploy key before S6 by supplying its public-key path to the module
-# (deploy_public_key_path); the instructor key likewise from S6.
+# Enroll the S5 deploy key in the controller BEFORE the S6 adoption: run
+# initialize again with the same profile and access key, plus the deploy key.
+dbai/console.sh initialize --environment-id <id> --profile containers \
+  --ssh-public-key ~/.ssh/dbai.pub --deploy-public-key ~/.ssh/gha-deploy.pub
+dbai/console.sh status <id>     # inputs.deploy_public_key_path names the key
+# The plan is "0 to add, 1 to change, 0 to destroy": the user data of the
+# instance, updated in place (AWS stops and starts the instance; disk, instance
+# id and EIP stay). cloud-init reads user data at the FIRST boot only, so the
+# running VM keeps the key that `ssh-copy-id` installed in S5, and every later
+# rebuild installs it from the profile. Without this step the S6 student root
+# either plans a change (path in terraform.tfvars) or rebuilds a VM that the
+# S5 pipeline cannot reach (no path). The instructor key likewise from S6.
 
 # phase-aware readiness (does not block earlier phases):
 dbai/console.sh check-keys --phase S2 --student ~/.ssh/dbai.pub
