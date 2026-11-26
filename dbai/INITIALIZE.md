@@ -47,7 +47,7 @@ Elastic IP**, converging to one consistent environment.
 - the profile is unknown, or no EIP has been allocated (`init-address` first);
 - the Terraform apply/boot fails — the error propagates, and no "READY" is printed.
 
-## Reading a plan / native Terraform (S6/S8/S9)
+## Reading a plan / native Terraform (S6/S7/S8)
 
 The wrapper never replaces the Terraform learning objective — you still read
 plans and run native Terraform on the controller.

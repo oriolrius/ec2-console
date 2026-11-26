@@ -36,7 +36,7 @@ profiles:
   - name: containers
     version: containers-0.1.0
     status: candidate
-    phases: [S4, S5, S6, S7]
+    phases: [S4, S5, S6, midterm]
     ubuntu: "24.04"
     ami: ami-03957e4cfe042cca1
     instance_size: t3.medium
@@ -53,12 +53,12 @@ profiles:
     student_excluded: "Student Dockerfile/Compose work, release workflow, S6 edits and recovery evidence"
 
   # operations-0.3.0 (PROFILE-11 correction): same bootstrap/tools as 0.2.0, root volume
-  # 25 -> 30 GB (0.2.0 fails the S11-S12 worst-case PVC limit, 93.1 %) and TCP 80 from
-  # the VM's own EIP so in-cluster probes of wb.<EIP>.sslip.io work (S10 hairpin).
+  # 25 -> 30 GB (0.2.0 fails the S10-S11 worst-case PVC limit, 93.1 %) and TCP 80 from
+  # the VM's own EIP so in-cluster probes of wb.<EIP>.sslip.io work (S9 hairpin).
   - name: operations
     version: operations-0.3.0
     status: candidate
-    phases: [S8, S9, S10, S11, S12, S13]
+    phases: [S7, S8, S9, S10, S11, S12]
     k3s_enabled: true
     ubuntu: "24.04"
     ami: ami-03957e4cfe042cca1
@@ -76,21 +76,21 @@ profiles:
       k3s: v1.30.5+k3s1
       kubectl: v1.30.5
       helm: v3.15.4
-    verification_evidence: PROFILE-11            # S11-S12 peak re-measured on 30 GB (QUALIFICATION-S11-S12.md)
+    verification_evidence: PROFILE-11            # S10-S11 peak re-measured on 30 GB (QUALIFICATION-S10-S11.md)
     student_excluded: "Student manifests/values/auth, monitoring dashboard, MLflow runs, retrieval releases"
 
   - name: operations
-    version: operations-0.2.0                 # PROFILE-04: S8 k3s transition = new pinned revision
+    version: operations-0.2.0                 # PROFILE-04: S7 k3s transition = new pinned revision
     status: superseded                        # by operations-0.3.0; still resolvable by exact version
-    phases: [S8, S9, S10, S11, S12, S13]
-    k3s_enabled: true                         # S8 boundary introduces k3s (PROFILE-04)
+    phases: [S7, S8, S9, S10, S11, S12]
+    k3s_enabled: true                         # S7 boundary introduces k3s (PROFILE-04)
     ubuntu: "24.04"
     ami: ami-03957e4cfe042cca1
     instance_size: t3.large
     module_revision: null
     bootstrap_template: dbai/profiles/operations/cloud-init.yaml.tftpl
     bootstrap_sha256: sha256:45df3946210e27518ce159059274e7573c266ce710252d3df8031e793d4d70ad
-    tools:                                    # pinned k3s/kubectl/Helm for S8/S9 (uv/docker carried, pins pending)
+    tools:                                    # pinned k3s/kubectl/Helm for S7/S8 (uv/docker carried, pins pending)
       ssh: distro
       git: distro
       uv: null
@@ -98,27 +98,27 @@ profiles:
       k3s: v1.30.5+k3s1
       kubectl: v1.30.5                         # k3s-bundled, symlinked
       helm: v3.15.4
-    verification_evidence: PROFILE-09          # capacity/boot qualification (S8-S10) stays with PROFILE-09
+    verification_evidence: PROFILE-09          # capacity/boot qualification (S7-S9) stays with PROFILE-09
     student_excluded: "Student manifests/values/auth, monitoring dashboard, MLflow runs, retrieval releases"
 
   # Practical-exam selections reuse the SAME qualified tool versions/repos; they
   # add no new tools and must never resolve through a mutable reference.
-  - name: exam-s7-practical
-    version: exam-s7-practical-0.1.0
+  - name: exam-midterm-practical
+    version: exam-midterm-practical-0.1.0
     status: candidate
     kind: practical
-    phases: [S7]
+    phases: [midterm]
     selects: [foundations-0.1.0, containers-0.1.0]
     instance_size: t3.medium
     module_revision: null
     verification_evidence: PROFILE-06
     student_excluded: "No pre-solved faults, no replacement grading repo"
 
-  - name: exam-s14-practical
-    version: exam-s14-practical-0.1.0
+  - name: exam-final-practical
+    version: exam-final-practical-0.1.0
     status: candidate
     kind: practical
-    phases: [S14]
+    phases: [final]
     selects: [operations-0.3.0]
     instance_size: t3.large
     module_revision: null

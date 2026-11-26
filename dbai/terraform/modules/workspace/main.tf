@@ -24,9 +24,9 @@ locals {
     var.app_ingress_cidrs,
   )))
 
-  # Web (port 80) ingress, S9+. web_ingress_cidrs is the student's explicit S9
+  # Web (port 80) ingress, S8+. web_ingress_cidrs is the student's explicit S8
   # rule (doc-11 Part B). web_ingress_self adds the VM's OWN public address:
-  # in-cluster probes that target wb.<EIP>.sslip.io (S10 blackbox) and the S12
+  # in-cluster probes that target wb.<EIP>.sslip.io (S9 blackbox) and the S11
   # release smoke leave the VM and re-enter through the EIP (hairpin), so
   # without it they fail whenever port 80 is limited to the student's laptop.
   web_cidrs = distinct(concat(
@@ -184,7 +184,7 @@ resource "aws_instance" "this" {
     authorized_keys = local.authorized_keys
   })
 
-  # S8 changes first-boot configuration; opt in to replacing the node.
+  # S7 changes first-boot configuration; opt in to replacing the node.
   user_data_replace_on_change = var.user_data_replace_on_change
 
   root_block_device {

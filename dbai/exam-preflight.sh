@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# S7/S14 exam preflight (PROFILE-06 / PROFILE-10) — READ ONLY.
+# Midterm / final-exam preflight (PROFILE-06 / PROFILE-10) — READ ONLY.
 #
 # Verifies that a student's EXISTING environment is ready for a practical exam
 # using the frozen, capacity-qualified profile — WITHOUT touching coursework.
@@ -8,7 +8,7 @@
 # assessment preflight (M11) consumes an explicit pass/fail (doc-18 §6).
 #
 # Usage:
-#   dbai/exam-preflight.sh <environment-id> [--exam-profile exam-s7-practical]
+#   dbai/exam-preflight.sh <environment-id> [--exam-profile exam-midterm-practical]
 #                          [--emit <assessment-manifest.json>]
 set -eu
 
@@ -23,7 +23,7 @@ state_root() {
 }
 manifest_path() { printf '%s/%s/environment.json' "$(state_root)" "$1"; }
 
-env_id=""; exam_profile="exam-s7-practical"; emit=""
+env_id=""; exam_profile="exam-midterm-practical"; emit=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --exam-profile) exam_profile="${2:-}"; shift 2 ;;
@@ -56,7 +56,7 @@ if prof.get("kind") != "practical":
 sels = prof.get("selects") or []
 size = prof.get("instance_size")
 # the qualified compute base is the SELECTED non-exam profile whose instance_size
-# matches the exam (containers for S7/t3.medium, operations for S14/t3.large).
+# matches the exam (containers for the midterm/t3.medium, operations for the final exam/t3.large).
 by_ver = {p.get("version"): p for p in profs}
 base = next((s for s in sels
              if by_ver.get(s) and by_ver[s].get("instance_size") == size

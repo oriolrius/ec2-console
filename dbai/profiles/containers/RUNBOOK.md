@@ -1,14 +1,14 @@
-# S4–S7 containers runbook
+# S4–S6 containers runbook (also the midterm VM)
 
 The **containers** profile (`containers-0.1.0`) prepares the same self-service
-VM for **S4–S7**. Ubuntu 24.04 on `t3.medium`, it **adds Docker Engine and the
+VM for **S4–S6** and the midterm. Ubuntu 24.04 on `t3.medium`, it **adds Docker Engine and the
 Compose plugin on top of** the foundations tools (git, uv, SSH) — nothing more.
 It supplies the container **platform and access only**; your Dockerfile, Compose
 file, release workflow and S6 recovery are your work and are never baked in.
 
 ## What the profile supplies vs. what you author
 
-| Supplied by bootstrap | You create (S4–S7) |
+| Supplied by bootstrap | You create (S4–S6) |
 |---|---|
 | Docker Engine (`docker`), Compose plugin (`docker compose`), daemon enabled | your `Dockerfile` (S4 hello-world container) |
 | foundations tools carried over: git, uv, SSH, remote-editor | your `compose.yaml` / workbench template (S5) |
@@ -17,7 +17,7 @@ file, release workflow and S6 recovery are your work and are never baked in.
 
 Docker, k3s, kubectl, eksctl/EKS/kind, Micromamba and heavy notebook defaults
 that belong to the **operations** profile stay **absent** here — you add k8s
-tooling only when S8 transitions you to that profile.
+tooling only when S7 transitions you to that profile.
 
 ## Controller vs remote — the split
 

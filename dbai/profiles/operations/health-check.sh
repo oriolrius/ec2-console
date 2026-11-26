@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Operations profile health verification (PROFILE-04). Runs ON the VM. Proves the
-# S8 platform is PREPARED (pinned k3s + kubectl + Helm, non-sudo kubectl), and
+# S7 platform is PREPARED (pinned k3s + kubectl + Helm, non-sudo kubectl), and
 # that NO student manifests/values/dashboards/MLflow/retrieval work was baked in.
 set -u
 fail=0
@@ -27,7 +27,7 @@ present_v() { # tool version-cmd...
   fi
 }
 
-echo "-- required (carried tools + S8 platform) --"
+echo "-- required (carried tools + S7 platform) --"
 present git
 present uv
 present docker

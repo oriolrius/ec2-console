@@ -1,8 +1,8 @@
 # Containers profile — capacity & boot-time qualification (PROFILE-08)
 
-Qualifies the **`containers`** profile (`containers-0.1.0`, phases **S4–S7**,
+Qualifies the **`containers`** profile (`containers-0.1.0`, phases **S4–S6 + midterm**,
 `t3.medium`) for class use by measuring cold-boot time and resource headroom
-under the **actual** S4–S7 workload (a remote editor + Docker running a
+under the **actual** S4–S6 workload (a remote editor + Docker running a
 container). Capacity only; the full reference-student journey is M11.
 
 ## Go / no-go limits (set BEFORE measuring)
@@ -12,7 +12,7 @@ container). Capacity only; the full reference-student journey is M11.
 | Cold boot (systemd, kernel+userspace) | **≤ 90 s** | first boot installs Docker; must still be lab-fast |
 | cloud-init total | **≤ 90 s** | Docker + Compose install completes in the setup window |
 | RAM headroom under editor + Docker workload | **≥ 30 %** free of total | editor + a running container must not thrash 4 GB |
-| Root disk free after bootstrap | **≥ 50 %** free | room for images/layers pulled across S4–S7 |
+| Root disk free after bootstrap | **≥ 50 %** free | room for images/layers pulled across S4–S6 and the midterm |
 | Docker usable **without sudo** | required | student drives Docker as `ubuntu` |
 
 ## Measured result — **PASS** ✅
@@ -34,7 +34,7 @@ first boot), 2026-09-22.
 | Docker without sudo | **OK** (`docker ps`/`docker run hello-world` as `ubuntu`) | required | ✅ |
 | Profile health-check | **HEALTH: PASS** (git, uv, docker, compose, daemon; excluded k3s/kubectl absent) | — | ✅ |
 
-**Method note.** Docker is the real S4–S7 platform and is exercised live
+**Method note.** Docker is the real S4–S6 platform and is exercised live
 (`docker run hello-world` succeeded; a running nginx container measured). The
 remote editor is a reserved allowance (≤ 500 MB), not a fabricated measurement;
 even with a container **and** the editor allowance the node keeps > 70 % RAM
@@ -63,7 +63,7 @@ free.
    the new profile's cloud-init does **not** re-run and Docker is not installed.
    The containers platform is only correct after a **rebuild** (fresh instance).
    The measured evidence above is from such a rebuilt instance. Documented in the
-   S8 runbook so a profile transition is always a planned replacement.
+   S7 runbook so a profile transition is always a planned replacement.
 
 ## Cost qualification (measured components, not an automatic cap)
 
@@ -80,7 +80,7 @@ storage + IPv4 persist until explicitly removed.
 
 ## Verdict
 
-`containers-0.1.0` **meets every go/no-go limit** for S4–S7 on `t3.medium` with
+`containers-0.1.0` **meets every go/no-go limit** for S4–S6 and the midterm on `t3.medium` with
 > 70 % RAM and 88 % disk headroom, a 50 s first boot, and sudo-less Docker —
 **accepted for class use** on the measured revision, with the AMI-pin and
 re-bootstrap findings carried forward (no silent upsize).

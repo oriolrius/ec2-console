@@ -1,5 +1,5 @@
-# Canonical module inputs (RECOVERY-R002). The pre-S8 interface intentionally
-# does NOT include k3s_enabled — that arrives with the S8 profile boundary.
+# Canonical module inputs (RECOVERY-R002). The pre-S7 interface intentionally
+# does NOT include k3s_enabled — that arrives with the S7 profile boundary.
 
 variable "student_id" {
   description = "Per-student/environment identity (non-secret); used in names/tags."
@@ -109,13 +109,13 @@ variable "root_volume_gb" {
 }
 
 variable "web_ingress_cidrs" {
-  description = "Explicit CIDRs allowed on selected web ports (S9: 80 redirect and 443 HTTPS). Empty = no external web rule."
+  description = "Explicit CIDRs allowed on selected web ports (S8: 80 redirect and 443 HTTPS). Empty = no external web rule."
   type        = list(string)
   default     = []
 }
 
 variable "web_ingress_ports" {
-  description = "Web ports opened to the explicit CIDRs and optional own EIP. Default preserves legacy HTTP; S9 HTTPS selects [80, 443]."
+  description = "Web ports opened to the explicit CIDRs and optional own EIP. Default preserves legacy HTTP; S8 HTTPS selects [80, 443]."
   type        = set(number)
   default     = [80]
   validation {
@@ -131,7 +131,7 @@ variable "web_ingress_self" {
 }
 
 variable "user_data_replace_on_change" {
-  description = "Replace the instance when first-boot configuration changes. Enable for the deliberate S8 k3s transition; false preserves earlier profile adoption."
+  description = "Replace the instance when first-boot configuration changes. Enable for the deliberate S7 k3s transition; false preserves earlier profile adoption."
   type        = bool
   default     = false
 }

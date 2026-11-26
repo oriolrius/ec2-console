@@ -128,8 +128,8 @@ dbai/console.sh stop  <id>    # stop the VM when you are not actively working
 dbai/console.sh start <id>    # resume it
 ```
 
-Stop the workspace outside active work in **S2–S5** and **S8–S13 (including
-S11)**. A stop/start round trip preserves the instance id, disk contents and the
+Stop the workspace outside active work in **S2–S5** and **S7–S12 (including
+S10)**. A stop/start round trip preserves the instance id, disk contents and the
 EIP association — start/stop are idempotent (stopping a stopped VM is a no-op).
 
 > **Stopping saves compute, not storage.** A stopped instance still incurs

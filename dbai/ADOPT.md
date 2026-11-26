@@ -63,7 +63,7 @@ manifest therefore first copies the `instance_id` and `public_ip` outputs of the
 workspace **state** into the manifest when they differ (an empty state clears the
 record) and logs `instance record refreshed from the workspace state: <old> ->
 <new>`. So `stop`, `start`, `diagnose`, `host-fingerprint`, `verify-host` and
-`recover` always address the instance that the state holds — including the S8
+`recover` always address the instance that the state holds — including the S7
 `console.sh stop` of a workspace that was rebuilt natively in S6. The refresh
 reads the local state file only: no AWS call and no Terraform run.
 

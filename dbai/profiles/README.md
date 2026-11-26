@@ -16,15 +16,15 @@ others remain pending.
 | Profile | Phases | Instance | Adds over previous | Qualified by |
 |---|---|---|---|---|
 | `foundations-0.1.0` | S2–S3 | t3.small | SSH, git, uv, remote-editor, minimal shell | PROFILE-05 ✅ [evidence](./foundations/QUALIFICATION.md) |
-| `containers-0.1.0` | S4–S7 | t3.medium | Docker / Compose | PROFILE-08 ✅ [evidence](./containers/QUALIFICATION.md) |
-| `operations-0.2.0` | S8–S13 | t3.large | **k3s + kubectl + Helm** (S8 transition, PROFILE-04) — [runbook](./operations/RUNBOOK.md) | PROFILE-09 (capacity pending) |
-| `exam-s7-practical-0.1.0` | S7 | t3.medium | *(none — reuses foundations+containers pins)* | PROFILE-06 — [preflight](../exam-preflight.sh) |
-| `exam-s14-practical-0.1.0` | S14 | t3.large | *(none — reuses operations pins)* | PROFILE-10 |
+| `containers-0.1.0` | S4–S6 + midterm | t3.medium | Docker / Compose | PROFILE-08 ✅ [evidence](./containers/QUALIFICATION.md) |
+| `operations-0.2.0` | S7–S12 | t3.large | **k3s + kubectl + Helm** (S7 transition, PROFILE-04) — [runbook](./operations/RUNBOOK.md) | PROFILE-09 (capacity pending) |
+| `exam-midterm-practical-0.1.0` | midterm | t3.medium | *(none — reuses foundations+containers pins)* | PROFILE-06 — [preflight](../exam-preflight.sh) |
+| `exam-final-practical-0.1.0` | final exam | t3.large | *(none — reuses operations pins)* | PROFILE-10 |
 
 **Remote development onboarding** (SSH + VS Code Remote SSH, execution-context
 labels): [`foundations/REMOTE_DEV.md`](./foundations/REMOTE_DEV.md) (PROFILE-07).
-The **S8 Kubernetes transition** (one planned replacement, populated-node
-protection, S9 plan→revert) is [`operations/RUNBOOK.md`](./operations/RUNBOOK.md)
+The **S7 Kubernetes transition** (one planned replacement, populated-node
+protection, S8 plan→revert) is [`operations/RUNBOOK.md`](./operations/RUNBOOK.md)
 (PROFILE-04).
 
 Each profile records the Ubuntu/AMI, tool pins, `ec2_console_version`,
@@ -39,8 +39,8 @@ never resolve through a mutable reference.
 | foundations | App repairs, feature/test solution, student-authored CI |
 | containers | Student Dockerfile/Compose work, release workflow, S6 edits and recovery evidence |
 | operations | Student manifests/values/auth, monitoring dashboard, MLflow runs, retrieval releases |
-| exam-s7-practical | No pre-solved faults, no replacement grading repo |
-| exam-s14-practical | No hidden automatic repair or fresh substitute project |
+| exam-midterm-practical | No pre-solved faults, no replacement grading repo |
+| exam-final-practical | No hidden automatic repair or fresh substitute project |
 
 ## Where the pins map
 
