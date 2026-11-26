@@ -10,7 +10,7 @@ manifest or logs** — only public keys and controller-local key *paths*
 |---|---|---|---|---|
 | **Student access** (`dbai.pem`) | inbound to VM | controller (`~/.ssh`, `dbai.pem`) | from **S2**, every boot/rebuild | student SSH / VS Code Remote |
 | **S5 deploy** | inbound to VM | GitHub Actions secret | enrolled in **S5**, before S6; restored every boot | CI deploys to the VM over SSH |
-| **Instructor** | inbound to VM | instructor controller | required from **S6**; restored on the assigned env | fault injection for S7/S14 assessment |
+| **Instructor** | inbound to VM | instructor controller | required from **S6**; restored on the assigned env | fault injection for the midterm and final-exam assessment |
 | **VM → GitHub** | outbound from VM | on the VM (regenerated on rebuild) | created on the VM; registered as a GitHub deploy key | the VM pulls course/app repos |
 
 ## How inbound keys are enrolled

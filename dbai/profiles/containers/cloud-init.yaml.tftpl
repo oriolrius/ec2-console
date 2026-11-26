@@ -1,10 +1,10 @@
 #cloud-config
-# Containers profile bootstrap (PROFILE-03, doc-18 §5) — the S4–S7 VM. Ubuntu
+# Containers profile bootstrap (PROFILE-03, doc-18 §5) — the S4–S6 VM (also the midterm VM). Ubuntu
 # 24.04 on t3.medium. Adds Docker Engine + the Compose plugin ON TOP of the
 # foundations tools (git, uv, SSH already present); it deliberately does NOT
 # pre-solve the student Dockerfile, Compose file, release workflow or S6
 # recovery. Still EXCLUDES k3s, kubectl, eksctl/EKS/kind, Micromamba and heavy
-# notebook defaults — those arrive with the operations profile in S8.
+# notebook defaults — those arrive with the operations profile in S7.
 #
 # Rendered with the enrolled PUBLIC keys (authorized_keys); byte-identical file
 # across the controller and student roots. Idempotent: reapplying converges, and

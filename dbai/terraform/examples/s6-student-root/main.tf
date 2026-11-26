@@ -112,7 +112,7 @@ variable "root_volume_gb" {
 }
 
 variable "web_ingress_cidrs" {
-  description = "Explicit CIDRs allowed on TCP 80 (S9 ingress)."
+  description = "Explicit CIDRs allowed on TCP 80 (S8 ingress)."
   type        = list(string)
   default     = []
 }

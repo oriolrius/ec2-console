@@ -1184,7 +1184,7 @@ cmd_check_keys() {
   done
   [ -n "$phase" ] || die "usage: console.sh check-keys --phase S2 [--student p] [--deploy p] [--instructor p]"
   local n; n="$(printf '%s' "$phase" | tr -dc '0-9')"
-  [ -n "$n" ] || die "phase must look like S2..S14"
+  [ -n "$n" ] || die "phase must look like S2..S13"
 
   local ok=1
   _need() { # name path

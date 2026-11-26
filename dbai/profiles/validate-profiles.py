@@ -16,7 +16,7 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 SCHEMA = "dbai/profile-catalog/v1"
-REQUIRED_PHASES = {"S2", "S3", "S4", "S7", "S8", "S13", "S14"}  # boundaries named
+REQUIRED_PHASES = {"S2", "S3", "S4", "midterm", "S7", "S12", "final"}  # boundaries named
 PLACEHOLDERS = {"tbd", "todo", "pending", "xxx", "changeme", "n/a", "?"}
 MUTABLE = {"latest", "main", "master", "head"}
 VERSION_RE = re.compile(r"^[a-z0-9][a-z0-9.\-]*[0-9](-candidate)?$", re.I)
@@ -122,11 +122,11 @@ def selftest() -> int:
         {"name": "foundations", "version": "foundations-0.1.0", "status": "candidate",
          "phases": ["S2", "S3"], "instance_size": "t3.small"},
         {"name": "containers", "version": "containers-0.1.0", "status": "candidate",
-         "phases": ["S4", "S7"], "instance_size": "t3.medium"},
+         "phases": ["S4", "midterm"], "instance_size": "t3.medium"},
         {"name": "operations", "version": "operations-0.1.0", "status": "candidate",
-         "phases": ["S8", "S13"], "instance_size": "t3.large"},
-        {"name": "exam-s14-practical", "version": "exam-s14-practical-0.1.0",
-         "status": "candidate", "kind": "practical", "phases": ["S14"],
+         "phases": ["S7", "S12"], "instance_size": "t3.large"},
+        {"name": "exam-final-practical", "version": "exam-final-practical-0.1.0",
+         "status": "candidate", "kind": "practical", "phases": ["final"],
          "instance_size": "t3.large"},
     ]}
     import copy

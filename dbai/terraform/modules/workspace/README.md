@@ -10,7 +10,7 @@ S6 adoption changes the editable root path — **not** resource identity
 
 Terraform **≥ 1.9**, AWS provider **~> 5.0**. Consuming roots commit their
 `.terraform.lock.hcl`. `k3s_enabled` is intentionally **absent** from this
-pre-S8 interface; it is introduced only at the S8 boundary.
+pre-S7 interface; it is introduced only at the S7 boundary.
 
 ## Inputs
 
@@ -28,7 +28,7 @@ pre-S8 interface; it is introduced only at the S8 boundary.
 | `app_ingress_cidrs` | no | explicit CIDRs for application ports (default: none) |
 | `root_volume_gb` | no | root gp3 size in GB, 25–100 (default 25; `operations-0.3.0` uses 30) |
 | `web_ingress_cidrs` | no | explicit CIDRs allowed on selected web ports (default: none) |
-| `web_ingress_ports` | no | set of 80 and/or 443; default `[80]` preserves existing resources, S9 HTTPS uses `[80,443]` |
+| `web_ingress_ports` | no | set of 80 and/or 443; default `[80]` preserves existing resources, S8 HTTPS uses `[80,443]` |
 | `web_ingress_self` | no | also allow TCP 80 from the VM's own EIP /32 (default false; `operations-0.3.0`: true). In-cluster probes of `wb.<EIP>.sslip.io` hairpin through the EIP |
 | `cost_tags` | no | extra tags merged onto every resource |
 

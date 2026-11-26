@@ -1,16 +1,16 @@
-# S8 Kubernetes transition & S9 inspection (PROFILE-04)
+# S7 Kubernetes transition & S8 inspection (PROFILE-04)
 
-S8 is the one **deliberate** replacement of the container VM: it swaps the S4–S7
+S7 is the one **deliberate** replacement of the container VM: it swaps the S4–S6
 `containers` profile for the `operations` profile, which adds a single-node
 **k3s** cluster with **pinned** kubectl and Helm on `t3.large`. After this
 boundary the node is *populated* (Secrets, PVCs, workloads accumulate through
-S9–S13), so a later change must **never** silently replace it. This runbook is
+S8–S12), so a later change must **never** silently replace it. This runbook is
 tool/platform scaffolding only — it ships **no** student manifests, values/auth,
 dashboards, MLflow runs or retrieval releases (doc-18 §4).
 
-## What changes at S8
+## What changes at S7
 
-| | S4–S7 `containers` | S8+ `operations` |
+| | S4–S6 `containers` | S7+ `operations` |
 |---|---|---|
 | instance size | `t3.medium` | **`t3.large`** |
 | platform | Docker + Compose | Docker **+ k3s** (`k3s_enabled`) |
@@ -43,7 +43,7 @@ plans a **VM replacement**. That is expected here — and it is surfaced as a pl
    dbai/console.sh verify-host m02qual                 # trust the NEW host key before reconnecting
    ```
    A profile change on a **live** instance is an in-place resize and does **not**
-   re-run cloud-init (it is once-per-instance-id), so the S8 platform is installed
+   re-run cloud-init (it is once-per-instance-id), so the S7 platform is installed
    by an actual **rebuild** — that is why the transition is a planned replacement,
    not an in-place edit.
 4. **[workspace]** After boot, restore access and repos **before** any k8s work:
@@ -53,7 +53,7 @@ plans a **VM replacement**. That is expected here — and it is surfaced as a pl
    kubectl get nodes                             # non-sudo; node Ready
    ```
 
-## Lab — hello-world on your own cluster (S8)
+## Lab — hello-world on your own cluster (S7)
 
 The ready cluster is the **same student-owned environment** at the retained EIP.
 `kubectl` works **without sudo** through the prescribed kubeconfig:
@@ -64,16 +64,16 @@ kubectl get nodes                 # Ready
 kubectl create deployment hello --image=<your ghcr hello-world>
 kubectl expose deployment hello --port=8000
 kubectl get pods,svc              # your own workload on your own cluster
-helm version                      # pinned Helm present for S9 inspection
+helm version                      # pinned Helm present for S8 inspection
 ```
 
-## Protecting a populated node (S8+ discipline) — AC#4
+## Protecting a populated node (S7+ discipline) — AC#4
 
 Once the node is populated, **applying a later profile/bootstrap change that would
 replace it is destructive** — it erases Secrets/PVCs and breaks the cumulative
 project. This must never happen silently:
 
-- Any plan that would **replace** a populated S8+ instance must be read as a
+- Any plan that would **replace** a populated S7+ instance must be read as a
   **destructive** action: the plan shows `-/+ destroy and then create`. **Stop**
   and treat it as data loss unless you have explicitly synced/retained the
   Secrets/PVCs and intend to rebuild.
@@ -84,9 +84,9 @@ project. This must never happen silently:
 - **Stop-only discipline** after the transition: stop the VM when idle
   (`console.sh stop`) — never destroy/replace a populated node to "reset" it.
 
-## S9 bootstrap-edit exercise (plan → revert → no-change) — AC#5
+## S8 bootstrap-edit exercise (plan → revert → no-change) — AC#5
 
-S9 teaches *why* first-boot edits are dangerous, without changing the running
+S8 teaches *why* first-boot edits are dangerous, without changing the running
 node:
 
 1. **[controller]** Edit the operations bootstrap (e.g. add a package) and plan:
@@ -112,7 +112,7 @@ retrieval releases are the students' own later work.
 
 ## Capacity (PROFILE-09) and stop discipline
 
-Measured on `t3.large` with S8+S9+S10 running together plus a VS Code remote session
+Measured on `t3.large` with S7+S8+S9 running together plus a VS Code remote session
 (see [QUALIFICATION.md](./QUALIFICATION.md)): boot 62 s, node Ready 65 s after launch, ≥ 58 %
 RAM free even under the LOAD FEST with Pylance active, 11 % CPU when idle, disk 58 % free (but
 the PVC capacity leaves only a thin margin: see the operations-0.3.0 30 GB proposal).
@@ -122,11 +122,11 @@ the PVC capacity leaves only a thin margin: see the operations-0.3.0 30 GB propo
 - `final-cleanup <env-id> --confirm` removes everything at course end.
 - An AWS Budget alert only **notifies**. It does not stop or cap anything.
 
-## S11–S12 capacity and stop discipline (PROFILE-11)
+## S10–S11 capacity and stop discipline (PROFILE-11)
 
-Measured on t3.large with the full S11–S12 peak (`QUALIFICATION-S11-S12.md`). Everything fits in
+Measured on t3.large with the full S10–S11 peak (`QUALIFICATION-S10-S11.md`). Everything fits in
 RAM and CPU (≥ 28 % RAM available at peak, idle CPU 11 %). The **25 GB disk does not qualify**: worst-case
 PVC growth reaches 93.1 % against a 90 % limit. `operations-0.3.0` (30 GB, own-EIP port 80) is measured and PASSES (worst case 77.1 %). Use it
-for S8+ environments; still check `df -h /` before S11 (≥ 5 GB free). Stop the VM after every lab
+for S7+ environments; still check `df -h /` before S10 (≥ 5 GB free). Stop the VM after every lab
 and homework session (`console.sh stop <id>`). Compute stops; disk and public IPv4 keep billing. AWS
 Budget alerts notify only.

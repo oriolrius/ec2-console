@@ -21,10 +21,10 @@ done so.
 
 ## Practice vs exam evidence retention
 
-- **S6–S7 practice**: destroying the workspace is the exercise; the address
+- **S6 practice**: destroying the workspace is the exercise; the address
   state is retained so you rebuild onto the same IP. Losing the VM disk is
   expected — your work lives in Git.
-- **Practical exam (S7/S14)**: evidence retention is mandatory. Sync every
+- **Practical exams (midterm and final exam)**: evidence retention is mandatory. Sync every
   required artifact first; there is no automatic disk backup and no substitute
   environment. Only then run the destructive step.
 
